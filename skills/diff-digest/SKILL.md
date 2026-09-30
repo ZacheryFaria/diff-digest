@@ -31,8 +31,9 @@ Use the first of these that applies:
 3. **Otherwise, generate a digest:**
    - Run `diff-digest hunks --base <base>`, and add `--head <head>` if the target is not checked out. `hunks` sorts files into `source`, `test`, `generated`, and `binary` (from `.gitattributes`, then built-in patterns), and removes import-only and moved-code hunks.
    - Read the source and test hunks with `git diff --no-ext-diff <base> [<head>] -- <path>`. Do not read generated or binary files.
-   - Run `diff-digest format` and obey it exactly. Write the digest to `digest`. The frontmatter has `branch`, `base`, and `head` (full SHAs); `pr: <url>` if a PR exists; and `pinned: true` if the target is not checked out.
+   - Run `diff-digest format` and obey it exactly. In the diagram, number each changed node (①②③) and use the same numbers in the list below it and in the Changes bullets. Write the digest to `digest`. The frontmatter has `branch`, `base`, and `head` (full SHAs); `pr: <url>` if a PR exists; and `pinned: true` if the target is not checked out.
    - Run `diff-digest check <md>` and fix every gap. Before you write a claim such as "no code reads X", verify it with `grep`.
+   - The digest has no Questions section. For each question that the code cannot answer, run `diff-digest note <md> "<text from the related block>" "Q: <question>"`.
    - If a PR exists, ask the user one question (AskUserQuestion): *post the digest to PR #N*, or *keep it local*. Before you post from the working tree, make sure that the branch is pushed and that `head` is the PR's head commit. To post, run `diff-digest publish <md>`. If no PR exists, do not ask.
 
 ## 3. Serve
@@ -42,7 +43,7 @@ Start two background tasks with `run_in_background: true` and `timeout: 7200000`
 - `diff-digest serve <md> --open`. This keeps running. Start it only once.
 - `diff-digest wait <md>`. This exits when the user clicks a button, and the exit wakes you.
 
-Tell the user the URL, the PR comment URL if you posted, and the digest's open questions. Then stop and wait.
+Tell the user the URL, the PR comment URL if you posted, and how many questions you added as notes. Then stop and wait.
 
 In the UI, the user comments on digest blocks and code lines, then uses one of these buttons:
 
@@ -52,10 +53,11 @@ In the UI, the user comments on digest blocks and code lines, then uses one of t
 | **Review with agent** | You (see below). |
 | **Post comments…** (with a PR) | The UI. The user previews the comments as one Markdown comment, then posts it. |
 | **Post digest** (with a PR) | The UI, after the user confirms. |
+| **Mark generated** (code pane **⋯** menu) | The UI. It writes the file's path to this repo's `generated` list in `~/.diff-digest/config.json`. `hunks` and `check` skip the file from then on. If the digest describes that file, offer to remove that part. |
 
 ## 4. When `wait` exits
 
-The output starts with `ACTION: <type>`, followed by JSON that contains the open comments.
+The output starts with `ACTION: <type>`, followed by JSON that contains the open comments. A code comment on a range has `line` and `endLine`, and its `text` has all the lines in the range.
 
 - **`apply`**: act on each comment, then run `diff-digest resolve <md> <id> "<one-line reply>"`.
   - The digest is wrong, unclear, or incomplete: edit the digest, then run `check` again.
@@ -69,7 +71,7 @@ After each action, start `wait` again. The page reloads by itself when the diges
 
 ## Other commands
 
-- `diff-digest config`: show the settings for this repo (digest folder, extra generated patterns). The file is `~/.diff-digest/config.json`. If a generated file shows as `source`, suggest that the user add a pattern for it there. Do not edit the file unless the user asks.
+- `diff-digest config`: show the settings for this repo (digest folder, extra generated patterns). The file is `~/.diff-digest/config.json`. If a generated file shows as `source`, suggest that the user click **Mark generated** in the file tree, or add a pattern in the config. Do not edit the file unless the user asks.
 - `diff-digest comments <md>`: print the open comments.
 - `diff-digest note <md> "<target text>" "<body>"`: add an agent note to the block that contains the target text.
 - `diff-digest review-md <md>`: print the open comments as one Markdown comment. Post it only if the user asks.

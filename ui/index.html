@@ -35,6 +35,7 @@
   </form>
 </dialog>
 <div id="layout">
+  <nav id="files"><div class="files-head">Files</div><div id="tree"></div></nav>
   <main id="digest"><article id="content"></article><section id="orphans"></section></main>
   <aside id="code" hidden>
     <div class="code-head">
@@ -43,6 +44,10 @@
         <button data-rev="diff" class="on" title="The git diff for this file only">Diff</button>
         <button data-rev="head" title="The file after the change (this branch)">After</button>
         <button data-rev="base" title="The file before the change (the merge-base)">Before</button>
+        <span class="menu-wrap">
+          <button id="code-menu-btn" title="More actions for this file" hidden>⋯</button>
+          <div id="code-menu" class="menu" hidden></div>
+        </span>
         <button id="code-close" title="Close">✕</button>
       </div>
     </div>

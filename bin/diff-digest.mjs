@@ -44,6 +44,8 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
 const DIGEST_MARK = "<!-- diff-digest:";
 const COMMENTS_MARK = "<!-- diff-digest-comments:";
 const COMMENT_LIMIT = 65536;
+// git's empty tree. It is the base in a repo that has no commits yet.
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 const [cmd, ...rest] = process.argv.slice(2);
 const flags = parseFlags(rest);
@@ -171,7 +173,7 @@ function cmdServe() {
                 const file = url.pathname === "/" ? "index.html" : url.pathname.slice(4);
                 const full = resolve(UI_DIR, file);
                 if (!full.startsWith(UI_DIR)) return send(res, 403, "forbidden");
-                res.writeHead(200, { "content-type": MIME[extname(full)] ?? "text/plain" });
+                res.writeHead(200, { "content-type": MIME[extname(full)] ?? "text/plain", "cache-control": "no-cache" });
                 return res.end(readFileSync(full));
             }
             if (route === "GET /api/digest") return sendJson(res, digestPayload(mdPath));
@@ -224,6 +226,12 @@ function cmdServe() {
                 return sendJson(res, postReview(mdPath, body));
             }
             if (route === "POST /api/publish") return sendJson(res, publishDigest(mdPath));
+            if (route === "POST /api/generated") {
+                const { path, on } = JSON.parse(await readBody(req));
+                setGenerated(path, on);
+                broadcast({ type: "digest" });
+                return sendJson(res, { ok: true });
+            }
             if (route === "GET /api/wait") {
                 if (queue.length > 0) {
                     res.end(JSON.stringify(queue.shift()));
@@ -384,11 +392,15 @@ function cmdExport() {
 // ---- targets and GitHub ----
 
 function resolveTarget(arg) {
-    const target = arg ?? (currentBranch() || "HEAD");
     const withPath = t => {
         const digest = join(digestDir(), `${t.name}.md`);
         return { ...t, digest, digestExists: existsSync(digest) };
     };
+    if (!arg && !tryRev("HEAD")) {
+        const name = currentBranch();
+        return withPath({ kind: "branch", name: slug(name), branch: name, checkedOut: true, base: EMPTY_TREE, head: null, pr: null });
+    }
+    const target = arg ?? (currentBranch() || "HEAD");
     const ref = parsePrRef(target);
     if (ref) {
         const pr = prInfo(ref);
@@ -583,11 +595,13 @@ function reviewMarkdown(mdPath) {
     if (onCode.length) {
         out.push("**On the code**", "");
         for (const c of onCode) {
-            const { path, line, rev: side, text } = c.target;
+            const { path, line, endLine, rev: side, text } = c.target;
             const at = side === "base" ? sha.base : sha.head;
-            const label = `\`${path.split("/").slice(-2).join("/")}:${line}\``;
-            const link = web && at ? `[${label}](${web}/blob/${at}/${path}#L${line})` : label;
-            out.push(`- ${link} (${side === "base" ? "before" : "after"}) — \`${quote(text ?? "")}\``, indent(c.body), "");
+            const lines = endLine ? `${line}-${endLine}` : `${line}`;
+            const label = `\`${path.split("/").slice(-2).join("/")}:${lines}\``;
+            const link = web && at ? `[${label}](${web}/blob/${at}/${path}#L${line}${endLine ? `-L${endLine}` : ""})` : label;
+            const first = (text ?? "").split("\n").find(l => l.trim()) ?? "";
+            out.push(`- ${link} (${side === "base" ? "before" : "after"}) — \`${quote(first.trim())}\``, indent(c.body), "");
         }
     }
     if (!onDigest.length && !onCode.length) out.push("_No open comments._", "");
@@ -636,6 +650,7 @@ function git(args, input) {
 }
 
 function rev(ref) {
+    if (ref === EMPTY_TREE) return ref;
     return git(["rev-parse", "--verify", `${ref}^{commit}`]).trim();
 }
 
@@ -662,7 +677,7 @@ function currentBranch() {
 }
 
 function slug(s) {
-    return (s || git(["rev-parse", "--short", "HEAD"]).trim()).replace(/[^\w.-]+/g, "-");
+    return (s || short(tryRev("HEAD") ?? "detached")).replace(/[^\w.-]+/g, "-");
 }
 
 function digestDir() {
@@ -678,14 +693,7 @@ function digestDir() {
 // Global settings, with the first matching entry in `repos` on top. A repo matches by name or by host/owner/name.
 function repoConfig() {
     if (repoConfig.cache) return repoConfig.cache;
-    let cfg = {};
-    if (existsSync(CONFIG_PATH)) {
-        try {
-            cfg = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
-        } catch (err) {
-            throw new Error(`${CONFIG_PATH} is not valid JSON: ${err.message}`);
-        }
-    }
+    const cfg = readConfig();
     const o = originRepo();
     const repoKeys = [o?.repo ?? basename(root), ...(o ? [`${o.host}/${o.owner}/${o.repo}`] : [])];
     const key = repoKeys.find(k => cfg.repos?.[k]);
@@ -698,8 +706,37 @@ function repoConfig() {
             throw new Error(`Bad regex in ${CONFIG_PATH}: ${r}`);
         }
     }
-    repoConfig.cache = { repoKeys, digestDir: local.digestDir ?? cfg.digestDir, generated };
+    repoConfig.cache = { repoKeys, key, digestDir: local.digestDir ?? cfg.digestDir, generated, local: local.generated ?? [] };
     return repoConfig.cache;
+}
+
+function readConfig() {
+    if (!existsSync(CONFIG_PATH)) return {};
+    try {
+        return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+    } catch (err) {
+        throw new Error(`${CONFIG_PATH} is not valid JSON: ${err.message}`);
+    }
+}
+
+// The pattern that "Mark generated" writes for one file.
+function exactPattern(path) {
+    return `^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`;
+}
+
+// Adds or removes one file's exact pattern in this repo's entry in the config.
+function setGenerated(path, on) {
+    if (!path) throw new Error("No path.");
+    const cfg = readConfig();
+    cfg.repos ??= {};
+    const { repoKeys, key } = repoConfig();
+    const entry = (cfg.repos[key ?? repoKeys[0]] ??= {});
+    const pattern = exactPattern(path);
+    const list = (entry.generated ?? []).filter(r => r !== pattern);
+    entry.generated = on ? [...list, pattern] : list;
+    mkdirSync(HOME_DIR, { recursive: true });
+    writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`);
+    repoConfig.cache = null;
 }
 
 function generatedPatterns() {
@@ -712,6 +749,7 @@ function expandHome(p) {
 
 function resolveBase(ref, head = "HEAD") {
     if (ref) return rev(ref);
+    if (head === "HEAD" && !tryRev("HEAD")) return EMPTY_TREE;
     for (const b of ["origin/HEAD", "origin/main", "origin/master", "main", "master"]) {
         const r = spawnSync("git", ["merge-base", head, b], { cwd: root, encoding: "utf8" });
         if (r.status === 0) return r.stdout.trim();
@@ -773,7 +811,12 @@ function changedFiles(base) {
             const [status, a, b] = line.split("\t");
             return { status: status[0], oldPath: a, path: b ?? a };
         });
+    if (!headRef) {
+        const untracked = git(["ls-files", "-z", "--others", "--exclude-standard"]).split("\0").filter(Boolean);
+        for (const path of untracked) files.push({ status: "A", oldPath: path, path, untracked: true });
+    }
     const binary = binaryPaths(range);
+    for (const f of files) if (f.untracked && isBinaryFile(join(root, f.path))) binary.add(f.path);
     const attrs = checkAttrs(files.map(f => f.path));
     const patterns = generatedPatterns();
     for (const f of files) {
@@ -799,6 +842,11 @@ function binaryPaths(range) {
         if (m[1] === "-") out.add(path);
     }
     return out;
+}
+
+// git's test: a NUL byte in the first 8000 bytes.
+function isBinaryFile(full) {
+    return readFileSync(full).subarray(0, 8000).includes(0);
 }
 
 function checkAttrs(paths) {
@@ -860,6 +908,15 @@ function parseDiff(text) {
 }
 
 function rawDiff(base, f, context = 0) {
+    if (f.untracked) {
+        // --no-index exits with 1 when the files differ, so do not use git().
+        const r = spawnSync("git", ["diff", "--no-ext-diff", "--no-index", `-U${context}`, "--", "/dev/null", f.path], {
+            cwd: root,
+            encoding: "utf8",
+            maxBuffer: 1 << 28,
+        });
+        return r.stdout;
+    }
     const paths = f.oldPath !== f.path ? [f.oldPath, f.path] : [f.path];
     return git(["diff", "--no-ext-diff", `-U${context}`, "-M", ...rangeArgs(base), "--", ...paths]);
 }
@@ -926,7 +983,9 @@ function digestPayload(mdPath) {
     const fm = frontmatter(md);
     const files = changedFiles(base);
     const body = stripFrontmatter(md);
-    const head = headRef ?? git(["rev-parse", "HEAD"]).trim();
+    const head = headRef ?? tryRev("HEAD") ?? "";
+    const marked = new Set(repoConfig().local);
+    for (const f of files) f.marked = marked.has(exactPattern(f.path));
     return {
         md: body,
         files,

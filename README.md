@@ -21,11 +21,12 @@ So the author runs `/diff-digest` on their branch, and a reviewer runs `/diff-di
 ## What is in a digest
 
 - **Generated files**: listed only.
-- **Architecture**: a Mermaid diagram of modules and data flow. Changed nodes are marked and have short notes.
+- **Architecture**: a Mermaid diagram of modules and data flow. Each changed node has a number (①②③). The notes below the diagram and the Changes bullets use the same numbers.
 - **Changes**: one line for each change, in the form *what it was → what it is*, with `file:line` anchors.
 - **Tables**: behavior as `before → after` for each real case. ⚠️ marks a change that a user can see or that is not safe.
 - **Tests and test gaps**: what each test proves and why that case was chosen. Changed behavior that has no test.
-- **Questions**: only questions that the code cannot answer.
+
+Questions that the code cannot answer are not in the digest. Claude adds them as agent notes on the related blocks, so you see them in the UI, and they are not posted to the PR.
 
 The full rules are in [`docs/format.md`](docs/format.md) (`diff-digest format` prints them).
 
@@ -40,7 +41,7 @@ The full rules are in [`docs/format.md`](docs/format.md) (`diff-digest format` p
 1. `.gitattributes`: `linguist-generated` or `linguist-vendored` marks a file as generated, and `filter=lfs` marks it as binary. `linguist-generated=false` has no effect here, because it only changes GitHub's diff view.
 2. Files that git shows as binary.
 3. Built-in patterns: lockfiles, snapshots, `__generated__/`, generated protos, and minified or map files.
-4. The `generated` regexes in `~/.diff-digest/config.json` (see Configuration).
+4. The `generated` regexes in `~/.diff-digest/config.json` (see Configuration). **Mark generated** in the UI file tree adds one file's path to this list.
 
 ## Install
 
@@ -65,8 +66,10 @@ bun run setup
 
 | Do this | Result |
 |---|---|
-| Click an anchor | The file opens beside the digest in the **Diff** tab, with the anchored hunk marked. **After** and **Before** show the full file. |
-| Hover a line and click **+** | Adds a comment on a digest block, a diff line, or a file line. |
+| Click a file in the **Files** tree | The file's diff opens in the code pane. |
+| In the code pane, click **⋯** → **Mark generated** | Future digests list the open file as generated and do not describe it. **Unmark generated** reverses this. |
+| Click an anchor | The file opens beside the digest in the **Diff** tab, with the anchored hunk marked. **After** and **Before** show the full file. If the file did not change, the Diff tab shows the full file with an "unchanged" tag. |
+| Hover a line and click **+** | Adds a comment on a digest block, a diff line, or a file line. In the code pane, drag from **+** to another line to comment on a range. A range stays on one side (before or after). |
 | **Apply comments** | The Claude session acts on your open comments and replies to each one. |
 | **Review with agent** | A new agent with no context reads the code first, then checks the digest and edits it. |
 | **Post comments…** | Shows your open comments as one Markdown comment. You can edit it, copy it, or post it to the PR. |
@@ -96,7 +99,7 @@ Run these commands from the repo or worktree.
 | `diff-digest config [--init]` | Show the settings for the current repo. `--init` writes the config file if it does not exist. |
 | `diff-digest format` / `prompt review-agent` | Print the format rules or the review-agent prompt. |
 
-If you do not give `--base`, the base is the merge-base with the remote default branch. Without `--head`, or `pinned: true` in the frontmatter, the head is the working tree.
+If you do not give `--base`, the base is the merge-base with the remote default branch. Without `--head`, or `pinned: true` in the frontmatter, the head is the working tree. The working tree includes untracked files that `.gitignore` does not exclude. In a repo that has no commits, the base is the empty tree.
 
 ## Configuration
 
@@ -117,7 +120,7 @@ If you do not give `--base`, the base is the merge-base with the remote default 
 
 | Key | Effect |
 |---|---|
-| `generated` | Regexes, tested against the repo-relative path, for more generated files. |
+| `generated` | Regexes, tested against the repo-relative path, for more generated files. **Mark generated** in the UI writes `^<path>$` to the repo entry. |
 | `digestDir` | The folder for digests. `{repo}` is the repo name, and `~` is your home folder. The default is `~/.diff-digest/digests/<repo>/`. |
 
 `diff-digest config` shows the settings for the current repo. `DIFF_DIGEST_HOME` moves the `~/.diff-digest` folder, for example for tests.

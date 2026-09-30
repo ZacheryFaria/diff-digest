@@ -46,10 +46,21 @@ async function init() {
         const start = deep[2] ? Number(deep[2]) : undefined;
         await openCode({ path: decodeURIComponent(deep[1]), start, end: deep[3] ? Number(deep[3]) : start, rev: "diff" });
     }
+    $("#code-menu-btn").onclick = e => {
+        e.stopPropagation();
+        $("#code-menu").hidden = !$("#code-menu").hidden;
+    };
+    document.addEventListener("click", e => {
+        if (!e.target.closest(".menu-wrap")) $("#code-menu").hidden = true;
+    });
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") $("#code-menu").hidden = true;
+    });
     $("#code-close").onclick = () => {
         $("#code").hidden = true;
         state.code = null;
         markActiveAnchor();
+        markActiveFile();
     };
 }
 
@@ -57,6 +68,7 @@ async function loadDigest() {
     state.digest = STATIC ? window.__DIGEST__ : await getJson("/api/digest");
     const scroll = digestEl.scrollTop;
     renderMeta();
+    renderTree();
     await renderDigest();
     renderComments();
     digestEl.scrollTop = scroll;
@@ -189,6 +201,95 @@ async function renderDigest() {
     markActiveAnchor();
 }
 
+// Changed files as a folder tree. A source or test file can be marked generated for future digests.
+function renderTree() {
+    const root = { dirs: new Map(), files: [] };
+    for (const f of state.digest.files) {
+        const parts = f.path.split("/");
+        let node = root;
+        for (const dir of parts.slice(0, -1)) {
+            if (!node.dirs.has(dir)) node.dirs.set(dir, { dirs: new Map(), files: [] });
+            node = node.dirs.get(dir);
+        }
+        node.files.push({ ...f, name: parts.at(-1) });
+    }
+    const list = node => {
+        const ul = document.createElement("ul");
+        for (const [name, child] of [...node.dirs].sort(([a], [b]) => a.localeCompare(b))) {
+            // Join folders that hold only one folder, as GitHub does.
+            let label = name;
+            let n = child;
+            while (n.files.length === 0 && n.dirs.size === 1) {
+                const [[next, c]] = n.dirs;
+                label += `/${next}`;
+                n = c;
+            }
+            const li = document.createElement("li");
+            li.innerHTML = `<div class="dir">${escapeHtml(label)}/</div>`;
+            li.append(list(n));
+            ul.append(li);
+        }
+        for (const f of node.files.sort((a, b) => a.name.localeCompare(b.name))) ul.append(fileItem(f));
+        return ul;
+    };
+    const tree = $("#tree");
+    tree.innerHTML = "";
+    tree.append(list(root));
+    markActiveFile();
+}
+
+function fileItem(f) {
+    const li = document.createElement("li");
+    li.className = `file ${f.cls}`;
+    li.dataset.path = f.path;
+    li.title = f.oldPath !== f.path ? `${f.oldPath} → ${f.path}` : f.path;
+    li.innerHTML = `<span class="status s-${f.status}">${f.status}</span><span class="name">${escapeHtml(f.name)}</span>` +
+        `<span class="cls">${f.cls}</span>`;
+    if (!STATIC) li.onclick = () => openCode({ path: f.path, rev: f.status === "D" ? "base" : "diff" });
+    return li;
+}
+
+function codeFile() {
+    const path = state.code?.resolved ?? state.code?.path;
+    return path && state.digest.files.find(f => f.path === path || f.path.endsWith(`/${path}`));
+}
+
+// The ⋯ menu in the code pane. A source or test file can be marked generated for future digests.
+function renderCodeMenu() {
+    const f = codeFile();
+    const menu = $("#code-menu");
+    const canMark = !STATIC && f && (f.marked || f.cls === "source" || f.cls === "test");
+    $("#code-menu-btn").hidden = !canMark;
+    menu.hidden = true;
+    menu.innerHTML = "";
+    if (!canMark) return;
+    const b = document.createElement("button");
+    b.textContent = f.marked ? "Unmark generated" : "Mark generated";
+    b.title = f.marked
+        ? "Review this file again in future digests"
+        : "List this file as generated in future digests. Saved in ~/.diff-digest/config.json";
+    b.onclick = async () => {
+        menu.hidden = true;
+        const name = f.path.split("/").pop();
+        try {
+            await postJson("/api/generated", { path: f.path, on: !f.marked });
+            toast(f.marked ? `${name} is reviewable again.` : `${name} is marked generated.`);
+            await loadDigest();
+        } catch (err) {
+            toast(`Could not save: ${err.message}`);
+        }
+    };
+    menu.append(b);
+}
+
+function markActiveFile() {
+    const path = state.code?.resolved ?? state.code?.path;
+    renderCodeMenu();
+    for (const li of document.querySelectorAll("#tree li.file")) {
+        li.classList.toggle("active", Boolean(path) && (li.dataset.path === path || li.dataset.path.endsWith(`/${path}`)));
+    }
+}
+
 function linkAnchor(codeEl) {
     const m = codeEl.textContent.match(ANCHOR_RE);
     if (!m) return;
@@ -246,7 +347,7 @@ function renderComments() {
             const t = document.createElement("div");
             t.className = "thread";
             const where = c.target.kind === "code"
-                ? `<code>${escapeHtml(c.target.path)}:${c.target.line}</code> (${c.target.rev})`
+                ? `<code>${escapeHtml(c.target.path)}:${c.target.line}${c.target.endLine ? `-${c.target.endLine}` : ""}</code> (${c.target.rev})`
                 : `<em>${escapeHtml((c.target.text ?? "").slice(0, 120))}</em> (text changed)`;
             t.innerHTML = `<div class="who">On ${where}</div>`;
             t.append(commentEl(c));
@@ -311,6 +412,7 @@ function openComposer(el, target) {
     ta.focus();
     const close = () => {
         box.remove();
+        clearRange();
         if (!host.children.length) (host.closest(".thread-row, .code-thread") ?? host).remove();
     };
     box.querySelector(".cancel").onclick = close;
@@ -326,20 +428,20 @@ function openComposer(el, target) {
     };
 }
 
-async function openCode({ path, start, end, rev }) {
-    state.code = { path, start, end, rev, anchor: path };
+async function openCode({ path, start, end, rev, unchanged }) {
+    state.code = { path, start, end, rev: unchanged ? "diff" : rev, anchor: path };
     $("#code").hidden = false;
-    for (const b of document.querySelectorAll(".tabs button[data-rev]")) b.classList.toggle("on", b.dataset.rev === rev);
+    for (const b of document.querySelectorAll(".tabs button[data-rev]")) b.classList.toggle("on", b.dataset.rev === state.code.rev);
+    markActiveFile();
     markActiveAnchor();
     const body = $("#code-body");
     if (rev === "diff") {
         const d = await getJson(`/api/diff?path=${encodeURIComponent(path)}`);
         $("#code-path").textContent = d.path ?? path;
+        state.code.resolved = d.path;
+        markActiveFile();
         body.innerHTML = "";
-        if (!d.text) {
-            body.innerHTML = `<div class="code-error">This file did not change.</div>`;
-            return;
-        }
+        if (!d.text) return openCode({ path, start, end, rev: "head", unchanged: true });
         body.append(diffTable(d, start, end, highlighterFor(d.path)));
         renderCodeComments();
         (body.querySelector(".hunk-focus") ?? body.querySelector(".added, .removed"))?.scrollIntoView({ block: "center" });
@@ -347,7 +449,14 @@ async function openCode({ path, start, end, rev }) {
     }
     const file = await getJson(`/api/file?path=${encodeURIComponent(path)}&rev=${rev}`);
     $("#code-path").textContent = file.path ?? path;
+    if (unchanged) {
+        const tag = document.createElement("span");
+        tag.className = "chip";
+        tag.textContent = `unchanged from ${(state.digest.meta.base ?? "base").slice(0, 11)}`;
+        $("#code-path").append(" ", tag);
+    }
     state.code.resolved = file.path;
+    markActiveFile();
     if (!file.text) {
         body.innerHTML = `<div class="code-error">${escapeHtml(file.error ?? "Empty file")}</div>`;
         return;
@@ -362,18 +471,18 @@ async function openCode({ path, start, end, rev }) {
         tr.className = `code-line ${file.marks[n] ?? ""}`;
         Object.assign(tr.dataset, { path: file.path, rev, line: String(n) });
         if (rev === "head" && start && n >= start && n <= end) tr.classList.add(related.length ? "anchor-range" : "focus");
+        tr.dataset.text = line;
         tr.innerHTML = `<td class="ln">${n}</td><td>${highlight(line)}</td>`;
-        tr.firstElementChild.prepend(commentButton(() =>
-            openComposer(tr, { kind: "code", path: file.path, line: n, rev, text: line.trim().slice(0, 200) })));
+        tr.firstElementChild.prepend(codeCommentButton(tr));
         return tr;
     };
     const removedRow = l => {
         const tr = document.createElement("tr");
         tr.className = "code-line removed inline-old";
         Object.assign(tr.dataset, { path: file.oldPath ?? file.path, rev: "base", line: String(l.n) });
+        tr.dataset.text = l.text;
         tr.innerHTML = `<td class="ln">−${l.n}</td><td>${highlight(l.text)}</td>`;
-        tr.firstElementChild.prepend(commentButton(() =>
-            openComposer(tr, { kind: "code", path: tr.dataset.path, line: l.n, rev: "base", text: l.text.trim().slice(0, 200) })));
+        tr.firstElementChild.prepend(codeCommentButton(tr));
         return tr;
     };
 
@@ -460,11 +569,10 @@ function diffTable(d, start, end, highlight) {
         const n = sign === "-" ? oldN : newN;
         const tr = document.createElement("tr");
         tr.className = `code-line ${sign === "+" ? "added" : sign === "-" ? "removed" : ""}`;
-        Object.assign(tr.dataset, { path: sign === "-" ? d.oldPath : d.path, rev, line: String(n) });
+        Object.assign(tr.dataset, { path: sign === "-" ? d.oldPath : d.path, rev, line: String(n), text });
         tr.innerHTML = `<td class="ln">${sign === "+" ? "" : oldN}</td><td class="ln ln2">${sign === "-" ? "" : newN}</td>` +
             `<td><span class="sign">${sign === " " ? " " : sign}</span>${highlight(text)}</td>`;
-        tr.firstElementChild.prepend(commentButton(() =>
-            openComposer(tr, { kind: "code", path: tr.dataset.path, line: n, rev, text: text.trim().slice(0, 200) })));
+        tr.firstElementChild.prepend(codeCommentButton(tr));
         group?.push(tr);
         table.append(tr);
         if (sign !== "+") oldN++;
@@ -487,11 +595,16 @@ function highlighterFor(path) {
 function renderCodeComments() {
     const body = $("#code-body");
     for (const el of body.querySelectorAll(".code-thread")) el.remove();
+    for (const el of body.querySelectorAll(".comment-range")) el.classList.remove("comment-range");
+    clearRange();
     for (const c of state.comments) {
         if (c.target.kind !== "code") continue;
-        const sel = `.code-line[data-path="${CSS.escape(c.target.path)}"][data-rev="${c.target.rev}"][data-line="${c.target.line}"]`;
-        const tr = body.querySelector(sel);
-        if (tr) codeThreadFor(tr).append(commentEl(c));
+        const { path, rev, line, endLine = line } = c.target;
+        const rows = [...body.querySelectorAll(`.code-line[data-path="${CSS.escape(path)}"][data-rev="${rev}"]`)]
+            .filter(tr => Number(tr.dataset.line) >= line && Number(tr.dataset.line) <= endLine);
+        if (!rows.length) continue;
+        if (endLine > line) rows.forEach(tr => tr.classList.add("comment-range"));
+        codeThreadFor(rows.at(-1)).append(commentEl(c));
     }
 }
 
@@ -505,6 +618,60 @@ function codeThreadFor(tr) {
     }
     return row.querySelector(".thread");
 }
+
+// Press + on a code line and drag to another line on the same side to comment on a range.
+function codeCommentButton(tr) {
+    const b = commentButton(() => {});
+    b.onmousedown = e => {
+        e.preventDefault();
+        codeCommentButton.drag = { start: tr, end: tr };
+        showRange();
+    };
+    return b;
+}
+
+function sameSide(a, b) {
+    return a.dataset.path === b.dataset.path && a.dataset.rev === b.dataset.rev;
+}
+
+function rangeRows() {
+    const { start, end } = codeCommentButton.drag ?? {};
+    if (!start) return [];
+    const [lo, hi] = [Number(start.dataset.line), Number(end.dataset.line)].sort((a, b) => a - b);
+    return [...$("#code-body").querySelectorAll(".code-line")]
+        .filter(tr => sameSide(tr, start) && Number(tr.dataset.line) >= lo && Number(tr.dataset.line) <= hi);
+}
+
+function showRange() {
+    clearRange();
+    for (const tr of rangeRows()) tr.classList.add("in-range");
+}
+
+function clearRange() {
+    for (const tr of document.querySelectorAll(".code-line.in-range")) tr.classList.remove("in-range");
+}
+
+document.addEventListener("mouseover", e => {
+    const drag = codeCommentButton.drag;
+    const tr = e.target.closest?.("#code-body .code-line");
+    if (!drag || !tr || !sameSide(tr, drag.start) || tr === drag.end) return;
+    drag.end = tr;
+    showRange();
+});
+
+document.addEventListener("mouseup", () => {
+    const drag = codeCommentButton.drag;
+    if (!drag) return;
+    const rows = rangeRows();
+    codeCommentButton.drag = null;
+    rows.forEach(tr => tr.classList.add("in-range"));
+    const first = rows[0].dataset;
+    const last = rows.at(-1).dataset;
+    const target = { kind: "code", path: first.path, rev: first.rev, line: Number(first.line) };
+    if (rows.length > 1) target.endLine = Number(last.line);
+    target.text = rows.map(tr => tr.dataset.text).join("\n").slice(0, 4000);
+    openComposer(rows.at(-1), target);
+});
 
 function commentButton(onClick) {
     const b = document.createElement("button");
