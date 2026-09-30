@@ -14,9 +14,26 @@
   <div class="actions" id="actions">
     <span class="listen" id="listen" title="Is a Claude session waiting for actions?"></span>
     <button id="apply" class="primary">Apply comments</button>
+    <button id="post-review" hidden>Post comments…</button>
+    <button id="publish" hidden>Post digest</button>
     <button id="review">Review with agent</button>
   </div>
 </header>
+<dialog id="review-dialog">
+  <form method="dialog">
+    <div class="dialog-head">
+      <b>Comments for the PR</b>
+      <span id="review-count"></span>
+    </div>
+    <p class="dialog-note">This is one Markdown comment made from your open comments. You can edit it before you post it.</p>
+    <textarea id="review-body" spellcheck="false"></textarea>
+    <div class="row">
+      <button value="cancel">Cancel</button>
+      <button id="review-copy" type="button">Copy</button>
+      <button id="review-post" type="button" class="primary">Post to PR</button>
+    </div>
+  </form>
+</dialog>
 <div id="layout">
   <main id="digest"><article id="content"></article><section id="orphans"></section></main>
   <aside id="code" hidden>

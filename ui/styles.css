@@ -168,3 +168,23 @@ li > .cbtn { left: -44px; }
   background: var(--bg-4); border: 1px solid var(--border);
   border-radius: var(--radius); padding: var(--space-8) var(--space-16); font-size: 13px;
 }
+
+/* PR and review */
+a.chip { text-decoration: none; color: var(--fg-muted); }
+a.chip:hover { border-color: var(--accent); }
+.chip.warn { border-color: var(--warning); color: var(--warning); }
+.comment.posted { opacity: 0.6; }
+#toast a, .reply a { color: var(--accent); }
+dialog#review-dialog {
+  width: min(860px, 92vw); padding: var(--space-16); color: var(--fg);
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+dialog#review-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.dialog-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-8); }
+#review-count, .dialog-note { color: var(--fg-muted); font-size: 12px; }
+#review-body {
+  width: 100%; min-height: 420px; resize: vertical; padding: var(--space-12);
+  font: 12.5px/1.5 var(--font-mono); color: var(--fg);
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+}
+dialog .row { display: flex; gap: var(--space-8); justify-content: flex-end; margin-top: var(--space-12); }

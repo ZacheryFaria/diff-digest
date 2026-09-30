@@ -1,16 +1,16 @@
 You review a diff digest: a short change spec for a git diff. You have no earlier context. Work only from the code and the files below.
 
 - Repo worktree: {{WORKTREE}}
-- Base: {{BASE}}   Head: {{HEAD}}
+- Base: {{BASE}}   Head: {{HEAD}} (`working tree` means the uncommitted files are part of the change)
 - Digest: {{DIGEST}}
-- Format rules: {{SKILL_DIR}}/SKILL.md (read the "Format" and "Rules" sections)
+- Format rules: run `diff-digest format`
 - CLI: `diff-digest` (run it from the worktree)
 
 The standard: a new agent with only the base commit and this digest must be able to make a change that behaves the same way. The code does not need to be identical.
 
 Do these steps in order:
 
-1. **Read the code first. Do not open the digest yet.** Run `diff-digest hunks --base {{BASE}}`, then read each source and test hunk with `git diff --no-ext-diff {{BASE}} -- <path>`. Open the files around the hunks when you need more context. Write your own short list of every behavior change.
+1. **Read the code first. Do not open the digest yet.** Run `diff-digest hunks {{HUNK_ARGS}}`, then read each source and test hunk with `git diff --no-ext-diff {{RANGE}} -- <path>`. Open the files around the hunks when you need more context. Write your own short list of every behavior change.
 2. **Read the digest.** Compare it with your list. Find:
    - Missing behavior: in your list but not in the digest.
    - Wrong claims: check each table cell and each bullet against the code. Use `grep` to check claims such as "no code reads X".

@@ -33,6 +33,10 @@ async function init() {
         if (new URLSearchParams(location.search).get("live") !== "0") connectEvents();
         $("#apply").onclick = () => sendAction("apply");
         $("#review").onclick = () => sendAction("review");
+        $("#publish").onclick = publishDigest;
+        $("#post-review").onclick = openReviewDialog;
+        $("#review-copy").onclick = () => navigator.clipboard.writeText($("#review-body").value).then(() => toast("Copied."));
+        $("#review-post").onclick = postReview;
     }
     for (const b of document.querySelectorAll(".tabs button[data-rev]")) {
         b.onclick = () => state.code && openCode({ ...state.code, rev: b.dataset.rev });
@@ -64,7 +68,9 @@ async function loadComments() {
     if (state.code) renderCodeComments();
     const open = state.comments.filter(c => c.status === "open").length;
     $("#apply").textContent = `Apply comments (${open})`;
+    $("#apply").title = "Claude acts on your comments now: edits the digest, answers questions, or changes code";
     $("#apply").disabled = open === 0;
+    $("#post-review").disabled = open === 0 || !state.digest?.meta.pr;
 }
 
 function connectEvents() {
@@ -85,6 +91,36 @@ function setListening({ listening, queued, offline }) {
     el.textContent = offline ? "Server offline" : listening ? "Claude is listening" : queued ? `Queued (${queued})` : "Claude is not listening";
 }
 
+async function publishDigest() {
+    const pr = state.digest.meta.pr;
+    if (!confirm(`Post this digest to ${pr ?? "the PR for this branch"}? If a digest comment already exists, it is updated.`)) return;
+    try {
+        const r = await postJson("/api/publish", {});
+        toast(`${r.updated ? "Updated" : "Posted"} the digest comment.${r.warnings.length ? ` ${r.warnings.join(" ")}` : ""}`, r.url);
+    } catch (err) {
+        toast(`Could not post: ${err.message}`);
+    }
+}
+
+async function openReviewDialog() {
+    const { body, count } = await getJson("/api/review-md");
+    $("#review-body").value = body;
+    $("#review-count").textContent = `${count} comment${count === 1 ? "" : "s"} · ${state.digest.meta.pr ?? ""}`;
+    $("#review-post").disabled = !state.digest.meta.pr;
+    $("#review-dialog").showModal();
+}
+
+async function postReview() {
+    try {
+        const r = await postJson("/api/post-review", { body: $("#review-body").value });
+        $("#review-dialog").close();
+        toast("Posted the review comment.", r.url);
+        await loadComments();
+    } catch (err) {
+        toast(`Could not post: ${err.message}`);
+    }
+}
+
 async function sendAction(type) {
     const wasListening = state.listening;
     await fetch("/api/action", { method: "POST", body: JSON.stringify({ type }) });
@@ -97,14 +133,23 @@ function renderMeta() {
     const { meta } = state.digest;
     const chip = (k, v) => `<span class="chip">${k} <b>${escapeHtml(String(v))}</b></span>`;
     const ratio = meta.diffLines ? Math.round((meta.digestLines / meta.diffLines) * 100) : 0;
+    const prNum = meta.pr?.match(/\/pull\/(\d+)/)?.[1];
+    const shortSha = s => (s ?? "").slice(0, 11);
     $("#meta").innerHTML = [
+        prNum && `<a class="chip" href="${escapeHtml(meta.pr)}" target="_blank">PR <b>#${prNum}</b></a>`,
+        meta.pinned && `<span class="chip" title="The code comes from the head commit, not the working tree">code <b>pinned</b></span>`,
+        meta.stale && `<span class="chip warn" title="The PR has commits that the digest does not describe">⚠️ digest is for <b>${shortSha(meta.head)}</b>, PR head is <b>${shortSha(meta.pr_head)}</b></span>`,
         meta.branch && chip("branch", meta.branch),
-        meta.base && chip("base", meta.base),
-        meta.head && chip("head", meta.head),
+        meta.base && chip("base", shortSha(meta.base)),
+        meta.head && chip("head", shortSha(meta.head)),
         chip("files", `${meta.files} (${meta.generated} generated)`),
         chip("diff", `${meta.diffLines} lines`),
         chip("digest", `${meta.digestLines} lines · ${ratio}%`),
     ].filter(Boolean).join("");
+    if (!STATIC) {
+        $("#publish").hidden = !meta.pr;
+        $("#post-review").hidden = !meta.pr;
+    }
     document.title = (state.digest.md.match(/^# (.*)$/m) ?? [, "Diff digest"])[1];
 }
 
@@ -236,9 +281,12 @@ function threadFor(el) {
 function commentEl(c) {
     const d = document.createElement("div");
     d.className = `comment ${c.status}`;
-    const who = c.author === "agent" ? "Agent · note" : c.status === "resolved" ? "You · resolved" : "You";
+    const who = c.author === "agent" ? "Agent · note" : c.status === "open" ? "You" : `You · ${c.status}`;
+    const reply = c.status === "posted"
+        ? `<a href="${escapeHtml(c.reply)}" target="_blank">Posted to the PR</a>`
+        : escapeHtml(c.reply ?? "");
     d.innerHTML = `<div class="who">${who}</div><div>${escapeHtml(c.body)}</div>` +
-        (c.reply ? `<div class="reply">↳ ${escapeHtml(c.reply)}</div>` : "");
+        (c.reply ? `<div class="reply">↳ ${reply}</div>` : "");
     const del = document.createElement("button");
     del.className = "del";
     del.textContent = "Delete";
@@ -470,16 +518,22 @@ function commentButton(onClick) {
     return b;
 }
 
-function toast(text) {
+function toast(text, url) {
     const t = $("#toast");
-    t.textContent = text;
+    t.innerHTML = escapeHtml(text) + (url ? ` <a href="${escapeHtml(url)}" target="_blank">Open</a>` : "");
     t.hidden = false;
     clearTimeout(toast.timer);
-    toast.timer = setTimeout(() => (t.hidden = true), 3500);
+    toast.timer = setTimeout(() => (t.hidden = true), url ? 8000 : 3500);
 }
 
 async function getJson(url) {
     return (await fetch(url)).json();
+}
+
+async function postJson(url, body) {
+    const res = await fetch(url, { method: "POST", body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 function norm(s) {
