@@ -11,6 +11,14 @@ describe("parseBlocks", () => {
         ]);
     });
 
+    test("counts a CRLF line end as one line", () => {
+        expect(parseBlocks("# T\r\n\r\n## A\r\n\r\n- a\r\n").map(b => [b.kind, b.line])).toEqual([
+            ["heading", 1],
+            ["heading", 3],
+            ["list", 5],
+        ]);
+    });
+
     test("gives each list item its line and its inline code", () => {
         const [list] = parseBlocks("- a `x.ts:1`\n- **b**\n");
         if (list?.kind !== "list") throw new Error("expected a list");

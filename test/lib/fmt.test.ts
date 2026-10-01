@@ -81,6 +81,11 @@ describe("formatDigest", () => {
         expect(formatDigest(GOOD_BODY, { questionsToNotes: true }).body).toBe(GOOD_BODY);
     });
 
+    test("gives the same result for CRLF input, with LF line ends", () => {
+        const crlf = MESSY.replaceAll("\n", "\r\n");
+        expect(formatDigest(crlf, { questionsToNotes: true })).toEqual(formatDigest(MESSY, { questionsToNotes: true }));
+    });
+
     test("is idempotent", () => {
         const once = formatDigest(MESSY, { questionsToNotes: true });
         expect(once.questions).toEqual(["Q1: does x happen?"]);

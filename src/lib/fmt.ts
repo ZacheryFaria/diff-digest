@@ -159,7 +159,9 @@ export function tableStyle(body: string): string {
     return lines.join("\n");
 }
 
-export function formatDigest(body: string, options: FmtOptions): FmtResult {
+/** Runs every fix. The output uses LF line ends. */
+export function formatDigest(input: string, options: FmtOptions): FmtResult {
+    const body = input.replaceAll(/\r\n?/gu, "\n");
     const moved = options.questionsToNotes ? questionsToNotes(body) : { body, questions: [] };
     const fixed = [orderSections, renumber, addChangedClassDef, anchorStyle, tableStyle].reduce(
         (text, fix) => fix(text),

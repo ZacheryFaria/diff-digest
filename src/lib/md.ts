@@ -158,8 +158,10 @@ function toBlock(source: string, offset: number, token: unknown): Block | null {
     return { ...head, kind: "other", type: base.data.type };
 }
 
-/** Parses Markdown (CommonMark + GFM) into typed blocks with 1-based line numbers. */
-export function parseBlocks(source: string): Block[] {
+/** Parses Markdown (CommonMark + GFM) into typed blocks with 1-based line numbers. CRLF counts as one line end. */
+export function parseBlocks(input: string): Block[] {
+    // marked turns CRLF and CR into LF, so the offsets must use the same text.
+    const source = input.replaceAll(/\r\n?/gu, "\n");
     const tokens: readonly unknown[] = marked.lexer(source, { gfm: true });
     const blocks: Block[] = [];
     let offset = 0;
