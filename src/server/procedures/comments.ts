@@ -1,8 +1,10 @@
+import { toLf } from "../../lib/digest";
 import { DigestError } from "../../lib/errors";
-import { buildModel } from "../../lib/model";
+import { buildModel, type ModelBlock } from "../../lib/model";
+import type { OpenDigest } from "../../lib/payload";
 import type { Comment } from "../../lib/schemas";
 import { readComments, updateComments } from "../../lib/store";
-import { openById, os, type ServerContext } from "../os";
+import { entryById, openById, os, type ServerContext } from "../os";
 
 function normalize(text: string): string {
     return text.replaceAll(/\s+/gu, " ").trim().toLowerCase();
@@ -13,7 +15,7 @@ function change(
     id: string,
     edit: (comments: readonly Comment[]) => readonly Comment[],
 ): readonly Comment[] {
-    const next = updateComments(openById(context, id).entry.mdPath, edit);
+    const next = updateComments(entryById(context, id).mdPath, edit);
     context.bus.publish(id, { type: "comments" });
     return next;
 }
@@ -24,8 +26,31 @@ function byId(comments: readonly Comment[], commentId: string): Comment {
     return found;
 }
 
+/** The model blocks with file lines: the body starts after the frontmatter. */
+function fileBlocks(open: OpenDigest): readonly ModelBlock[] {
+    const md = toLf(open.md);
+    const lineOffset = md.slice(0, md.length - open.body.length).split("\n").length - 1;
+    return buildModel(open.body, lineOffset).blocks;
+}
+
+/** The block whose text equals `text`, else the one block that contains it. */
+function findBlock(blocks: readonly ModelBlock[], text: string): ModelBlock {
+    const wanted = normalize(text);
+    const equal = blocks.find(b => normalize(b.text) === wanted);
+    if (equal !== undefined) return equal;
+    const matches = blocks.filter(b => normalize(b.text).includes(wanted));
+    const [first, ...others] = matches;
+    if (first === undefined) throw new DigestError("NOT_FOUND", `No digest block contains "${text}".`);
+    if (others.length > 0) {
+        throw new DigestError("BAD_INPUT", `${matches.length} blocks contain "${text}".`, {
+            hint: "Give more of the block text, so that only one block matches.",
+        });
+    }
+    return first;
+}
+
 export const comments = {
-    list: os.comments.list.handler(({ input, context }) => readComments(openById(context, input.id).entry.mdPath)),
+    list: os.comments.list.handler(({ input, context }) => readComments(entryById(context, input.id).mdPath)),
     add: os.comments.add.handler(({ input, context }) => {
         const comment: Comment = {
             id: context.newId(),
@@ -46,26 +71,21 @@ export const comments = {
         return { ok: true as const };
     }),
     resolve: os.comments.resolve.handler(({ input, context }) => {
-        const next = change(context, input.id, list =>
-            list.map(c =>
-                c.id === input.commentId
-                    ? { ...byId(list, input.commentId), status: "resolved" as const, reply: input.reply }
-                    : c,
-            ),
-        );
+        const next = change(context, input.id, list => {
+            const found = byId(list, input.commentId);
+            const resolved: Comment = { ...found, status: "resolved", reply: input.reply };
+            return list.map(c => (c.id === input.commentId ? resolved : c));
+        });
         return byId(next, input.commentId);
     }),
     note: os.comments.note.handler(({ input, context }) => {
-        const block = buildModel(openById(context, input.id).body).blocks.find(b =>
-            normalize(b.text).includes(normalize(input.text)),
-        );
-        if (block === undefined) throw new DigestError("NOT_FOUND", `No digest block contains "${input.text}".`);
+        const block = findBlock(fileBlocks(openById(context, input.id)), input.text);
         const note: Comment = {
             id: context.newId(),
             created: context.now(),
             author: "agent",
             status: "note",
-            target: { kind: "digest", cid: block.cid, section: block.section, text: block.text },
+            target: { kind: "digest", cid: block.cid, section: block.section, text: block.text, line: block.line },
             body: input.body,
         };
         change(context, input.id, list => [...list, note]);

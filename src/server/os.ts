@@ -4,12 +4,13 @@ import { contract } from "../lib/contract";
 import { DigestError } from "../lib/errors";
 import { openDigest, type OpenDigest } from "../lib/payload";
 import { findDigest, registryPath } from "../lib/registry";
-import type { Action, ActionStatus, ServerEvent, WaitResult } from "../lib/schemas-api";
+import type { Action, ActionStatus, RegistryEntry, ServerEvent, WaitResult } from "../lib/schemas-api";
 
 /** What procedures use from the event bus (`EventBus` implements it). */
 export interface Bus {
     readonly publish: (id: string, event: ServerEvent) => void;
     readonly subscribe: (id: string, listener: (event: ServerEvent) => void) => () => void;
+    readonly has: (id: string) => boolean;
 }
 
 /** What procedures use from the action hub (`ActionHub` implements it). */
@@ -42,6 +43,12 @@ export const os = implement(contract)
         }
     });
 
+/** The registry entry only. Comments and actions use it: they need the digest file, not the repo. */
+export function entryById(context: ServerContext, id: string): RegistryEntry {
+    return findDigest(id, registryPath(context.home));
+}
+
+/** The digest with its repo context and changed files, for the digest and file views. */
 export function openById(context: ServerContext, id: string): OpenDigest {
-    return openDigest(findDigest(id, registryPath(context.home)), context.home);
+    return openDigest(entryById(context, id), context.home);
 }

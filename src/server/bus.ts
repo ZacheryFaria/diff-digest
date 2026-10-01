@@ -13,7 +13,13 @@ export class EventBus {
         this.#listeners.set(id, set);
         return () => {
             set.delete(listener);
+            if (set.size === 0 && this.#listeners.get(id) === set) this.#listeners.delete(id);
         };
+    }
+
+    /** True when `id` has an open event stream now. Change polling skips the other digests. */
+    has(id: string): boolean {
+        return (this.#listeners.get(id)?.size ?? 0) > 0;
     }
 
     publish(id: string, event: ServerEvent): void {

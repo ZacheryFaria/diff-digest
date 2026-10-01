@@ -120,6 +120,8 @@ const DigestTargetSchema = z.strictObject({
     cid: z.string().min(1),
     section: z.string(),
     text: z.string(),
+    /** The file line of the block, so that blocks with equal `cid`s can be told apart. */
+    line: z.int().positive().optional(),
 });
 
 const CodeTargetSchema = z
