@@ -1,4 +1,5 @@
 import { anchors } from "../digest";
+import { flatBlocks } from "../md";
 import type { LintIssue } from "../schemas";
 import { inlineLines, issue, type LintRule } from "./rule";
 
@@ -58,7 +59,8 @@ export const noInlineHtml: LintRule = {
     description: "No HTML in the body. Some viewers do not render it.",
     check: ({ model }) => {
         const out: LintIssue[] = [];
-        for (const b of model.all) if (b.kind === "html") out.push(issue(noInlineHtml, b.line, "HTML block."));
+        for (const b of flatBlocks(model.all))
+            if (b.kind === "html") out.push(issue(noInlineHtml, b.line, "HTML block."));
         for (const { line, inline } of inlineLines(model.all)) {
             if (inline.some(i => i.kind === "html")) out.push(issue(noInlineHtml, line, "Inline HTML."));
         }
@@ -82,7 +84,7 @@ export const linkStyle: LintRule = {
     description: "Only standard `[text](url)` links and autolinks.",
     check: ({ model }) => {
         const out: LintIssue[] = [];
-        for (const b of model.all)
+        for (const b of flatBlocks(model.all))
             if (b.kind === "def") out.push(issue(linkStyle, b.line, "Reference link definition."));
         for (const { line, inline } of inlineLines(model.all)) {
             for (const i of inline) {
@@ -100,7 +102,7 @@ export const tableMaxColumns: LintRule = {
     severity: "warn",
     description: `Tables have at most ${MAX_TABLE_COLUMNS} columns, so they fit in a terminal viewer.`,
     check: ({ model }) =>
-        model.all
+        flatBlocks(model.all)
             .filter(b => b.kind === "table" && b.header.length > MAX_TABLE_COLUMNS)
             .map(b => issue(tableMaxColumns, b.line, `The table has more than ${MAX_TABLE_COLUMNS} columns.`)),
 };

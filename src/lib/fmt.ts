@@ -1,7 +1,7 @@
 // Safe auto-fixes for a digest body (spec §9). Each fix keeps the meaning and never deletes
 // content. Only `questionsToNotes` removes a section, and it returns the text it removed.
 import { KNOWN_SECTIONS, QUESTIONS } from "./lint/structure";
-import { parseBlocks, type Block } from "./md";
+import { codeLines, endLine, parseBlocks } from "./md";
 import { buildModel, circled, leadingNumber } from "./model";
 
 export const CHANGED_CLASS_DEF = "  classDef changed stroke:#ffc430,stroke-width:2px";
@@ -25,11 +25,6 @@ const PIPE = /(?<!\\)\|/u;
 interface Chunk {
     readonly title: string | null;
     readonly text: string;
-}
-
-/** The last line (1-based) of a block, from its raw text. */
-function endLine(block: Block): number {
-    return block.line + block.raw.replace(/\n+$/u, "").split("\n").length - 1;
 }
 
 function chunks(body: string): Chunk[] {
@@ -120,12 +115,6 @@ export function addChangedClassDef(body: string): string {
     const lines = body.split("\n");
     lines.splice(endLine(fence) - 1, 0, CHANGED_CLASS_DEF);
     return lines.join("\n");
-}
-
-function codeLines(blocks: readonly Block[]): Set<number> {
-    const out = new Set<number>();
-    for (const b of blocks) if (b.kind === "code") for (let l = b.line; l <= endLine(b); l += 1) out.add(l);
-    return out;
 }
 
 /** `a.ts:3-3` becomes `a.ts:3`. Code blocks do not change. */

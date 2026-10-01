@@ -71,6 +71,11 @@ describe("fmt fixes", () => {
         expect(out).toBe("- `a.ts:3` and `b.ts:3-4`\n\n```\n`c.ts:5-5`\n```\n");
     });
 
+    test("anchorStyle leaves a code block in a list item alone", () => {
+        const body = "- item\n\n  ```\n  `c.ts:5-5`\n  ```\n";
+        expect(anchorStyle(body)).toBe(body);
+    });
+
     test("tableStyle uses one row style and keeps alignment and escaped pipes", () => {
         expect(tableStyle("| a|b \\| c |\n|:--|--:|\n|1|2|\n")).toBe("| a | b \\| c |\n|:---|---:|\n| 1 | 2 |\n");
     });

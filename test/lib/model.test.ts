@@ -75,4 +75,12 @@ describe("buildModel", () => {
         expect(changes.length).toBe(3);
         expect(new Set(a.map(x => x.cid)).size).toBe(a.length);
     });
+
+    test("a nested item gets its own block id and line, in the same section", () => {
+        const body = GOOD_BODY.replace("`src/view.tsx:3`\n", "`src/view.tsx:3`\n  - Nested note.\n");
+        const nested = buildModel(body, 8).blocks.find(b => b.text === "Nested note.");
+        expect(nested).toMatchObject({ section: "Changes", line: 30 });
+        const parent = buildModel(body, 8).blocks.find(b => b.line === 29);
+        expect(parent?.text).toBe("② The badge renders when `retried` is true: `src/view.tsx:3`");
+    });
 });

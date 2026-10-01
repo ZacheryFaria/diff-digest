@@ -144,31 +144,48 @@ function normalize(text: string): string {
 }
 
 function shift(block: Block, offset: number): Block {
-    if (block.kind !== "list") return { ...block, line: block.line + offset };
-    return { ...block, line: block.line + offset, items: block.items.map(i => ({ ...i, line: i.line + offset })) };
+    const line = block.line + offset;
+    if (block.kind === "blockquote") return { ...block, line, children: block.children.map(b => shift(b, offset)) };
+    if (block.kind !== "list") return { ...block, line };
+    const items = block.items.map(i => ({
+        ...i,
+        line: i.line + offset,
+        children: i.children.map(b => shift(b, offset)),
+    }));
+    return { ...block, line, items };
 }
 
-function modelBlocks(all: readonly Block[]): ModelBlock[] {
+/**
+ * The model blocks of `blocks` and of their nested blocks, from the section `start`. Only a top-level
+ * heading starts a section, so nested blocks keep the section of their parent.
+ */
+function blocksIn(blocks: readonly Block[], start: string, top: boolean): ModelBlock[] {
     const out: ModelBlock[] = [];
-    let section = "";
+    let section = start;
     const add = (text: string, line: number): void => {
         const t = normalize(text);
         out.push({ cid: blockId(section, t), section, text: t, line });
     };
-    for (const block of all) {
+    for (const block of blocks) {
         switch (block.kind) {
             case "heading": {
-                if (block.depth === 2 || block.depth === 3) section = normalize(block.text);
+                if (top && (block.depth === 2 || block.depth === 3)) section = normalize(block.text);
                 add(textOf(block.inline), block.line);
                 break;
             }
-            case "paragraph":
-            case "blockquote": {
+            case "paragraph": {
                 add(textOf(block.inline), block.line);
+                break;
+            }
+            case "blockquote": {
+                out.push(...blocksIn(block.children, section, false));
                 break;
             }
             case "list": {
-                for (const item of block.items) add(textOf(item.inline), item.line);
+                for (const item of block.items) {
+                    add(textOf(item.inline), item.line);
+                    out.push(...blocksIn(item.children, section, false));
+                }
                 break;
             }
             case "table": {
@@ -233,7 +250,7 @@ export function buildModel(body: string, lineOffset = 0): DigestModel {
         diagram,
         notes: diagram === null || notesBlock?.kind !== "list" ? [] : numbered(notesBlock.items),
         changes: numbered(listItemsIn(changes?.blocks ?? [])),
-        blocks: modelBlocks(all),
+        blocks: blocksIn(all, "", true),
         all,
     };
 }

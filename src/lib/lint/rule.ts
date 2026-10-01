@@ -1,6 +1,6 @@
 // Shared types and helpers for the lint rules.
 import type { Anchor } from "../digest";
-import type { Inline, Block } from "../md";
+import { flatBlocks, type Block, type Inline } from "../md";
 import type { DigestModel } from "../model";
 import type { LintIssue, LintSeverity } from "../schemas";
 
@@ -27,13 +27,13 @@ export interface LineInline {
     readonly inline: readonly Inline[];
 }
 
+/** The inline content of each line, also in nested lists and blockquotes. Code blocks have none. */
 export function inlineLines(all: readonly Block[]): LineInline[] {
     const out: LineInline[] = [];
-    for (const b of all) {
+    for (const b of flatBlocks(all)) {
         switch (b.kind) {
             case "heading":
-            case "paragraph":
-            case "blockquote": {
+            case "paragraph": {
                 out.push({ line: b.line, inline: b.inline });
                 break;
             }
@@ -47,6 +47,7 @@ export function inlineLines(all: readonly Block[]): LineInline[] {
                     out.push({ line: b.line + 2 + i, inline: row.flatMap(c => c.inline) });
                 break;
             }
+            case "blockquote":
             case "code":
             case "html":
             case "def":

@@ -38,6 +38,33 @@ describe("lintDigest", () => {
         expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 37]]);
     });
 
+    test("anchor-resolves: an anchor in a nested Changes bullet is checked", () => {
+        const body = GOOD_BODY.replace("`src/view.tsx:3`\n", "`src/view.tsx:3`\n  - Nested: `bad.ts:4`\n");
+        const checked: string[] = [];
+        const ctx: LintContext = {
+            checkAnchor: a => {
+                checked.push(a.path);
+                return a.path === "bad.ts" ? "No such file" : null;
+            },
+        };
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 30]]);
+        expect(checked).toContain("bad.ts");
+    });
+
+    test("anchor-resolves: an anchor in a list inside a callout is checked", () => {
+        const body = `${GOOD_BODY}\n> [!NOTE]\n> See:\n> - \`bad.ts:1\`\n`;
+        const ctx: LintContext = { checkAnchor: a => (a.path === "bad.ts" ? "No such file" : null) };
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 39]]);
+    });
+
+    test("no-inline-html and no-wikilinks: a nested bullet is checked", () => {
+        const body = GOOD_BODY.replace("`src/view.tsx:3`\n", "`src/view.tsx:3`\n  - A <b>bold</b> [[x]] word.\n");
+        expect(lintDigest(`${FRONTMATTER}${body}`, OK).map(i => [i.rule, i.line])).toEqual([
+            ["no-inline-html", 30],
+            ["no-wikilinks", 30],
+        ]);
+    });
+
     test("node-numbers: each skipped number is reported", () => {
         const body = GOOD_BODY.replace("② List view", "⑤ List view")
             .replace("2. ②", "2. ⑤")

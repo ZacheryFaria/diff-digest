@@ -49,4 +49,48 @@ describe("parseBlocks", () => {
             "link",
         ]);
     });
+
+    test("reads an ordered list", () => {
+        const [list] = parseBlocks("1. one\n2. two\n");
+        if (list?.kind !== "list") throw new Error("expected a list");
+        expect([list.ordered, list.items.map(i => [i.line, i.text])]).toEqual([
+            true,
+            [
+                [1, "one"],
+                [2, "two"],
+            ],
+        ]);
+    });
+
+    test("a thematic break is kind other", () => {
+        expect(parseBlocks("a\n\n---\n").map(b => (b.kind === "other" ? b.type : b.kind))).toEqual(["paragraph", "hr"]);
+    });
+
+    test("gives a nested list its own blocks and lines; the item inline has only its own text", () => {
+        const [list] = parseBlocks("- a `x.ts:1`\n  - b\n  - c\n    more\n  - d\n- e\n");
+        if (list?.kind !== "list") throw new Error("expected a list");
+        const [first, last] = list.items;
+        expect(first?.inline).toEqual([
+            { kind: "text", text: "a " },
+            { kind: "code", text: "x.ts:1" },
+        ]);
+        const [nested] = first?.children ?? [];
+        if (nested?.kind !== "list") throw new Error("expected a nested list");
+        expect([nested.line, nested.items.map(i => i.line)]).toEqual([2, [2, 3, 5]]);
+        expect(last?.line).toBe(6);
+        expect(last?.children).toEqual([]);
+    });
+
+    test("gives a blockquote its nested blocks with file lines", () => {
+        const [quote] = parseBlocks("text\n\n> [!NOTE]\n> See:\n> - q `c.ts:3`\n> - r\n").slice(1);
+        if (quote?.kind !== "blockquote") throw new Error("expected a blockquote");
+        expect(quote.line).toBe(3);
+        const [paragraph, list] = quote.children;
+        expect(paragraph?.line).toBe(3);
+        if (list?.kind !== "list") throw new Error("expected a list");
+        expect(list.items.map(i => [i.line, i.inline.map(x => x.text).join("")])).toEqual([
+            [5, "q c.ts:3"],
+            [6, "r"],
+        ]);
+    });
 });

@@ -1,24 +1,14 @@
 // Anchor links for published digests (spec §5.3). Pure: the UI imports this file.
 import { ANCHOR, type Anchor } from "./digest";
-import { parseBlocks } from "./md";
+import { codeLines, parseBlocks } from "./md";
 
 /** The URL for an anchor, or null to leave the anchor as a plain code span. */
 export type AnchorLinker = (anchor: Anchor) => string | null;
 
 const LINKED_ANCHOR = /\[(`[\w@#./-]+\.\w+:\d+(?:-\d+)?`)\]\([^)\s]+\)/gu;
 
-function codeLines(body: string): Set<number> {
-    const out = new Set<number>();
-    for (const b of parseBlocks(body)) {
-        if (b.kind !== "code") continue;
-        const count = b.raw.replace(/\n+$/u, "").split("\n").length;
-        for (let l = b.line; l < b.line + count; l += 1) out.add(l);
-    }
-    return out;
-}
-
 function mapLines(body: string, fix: (line: string) => string): string {
-    const code = codeLines(body);
+    const code = codeLines(parseBlocks(body));
     return body
         .split("\n")
         .map((line, i) => (code.has(i + 1) ? line : fix(line)))

@@ -22,6 +22,11 @@ describe("render", () => {
         expect(renderLinks(body, LINK)).toBe("- [`a.ts:1`](https://x.dev/blob/sha/a.ts#L1-L1)\n\n```\n`b.ts:2`\n```\n");
     });
 
+    test("a code block in a blockquote does not change", () => {
+        const body = "> text\n>\n> ```\n> `b.ts:2`\n> ```\n";
+        expect(renderLinks(body, LINK)).toBe(body);
+    });
+
     test("the rendered body has no HTML", () => {
         expect(renderLinks(GOOD_BODY, LINK)).not.toMatch(/<[a-z!/]/u);
     });
