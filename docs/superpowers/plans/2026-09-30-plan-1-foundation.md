@@ -2033,3 +2033,23 @@ git add src/lib/store.ts src/lib/config.ts test/lib/store.test.ts test/lib/confi
 git commit -m "minor: add comment store and config resolution"
 ```
 
+
+---
+
+## Carry-forward for plans 2–7 (from the plan 1 reviews)
+
+Plan 1 is complete (45 tests). The final review fixed the diff parser (lines that start with `---`/`+++` inside a hunk), `-z` path parsing, YAML errors, nested-repo entries, the `publishTo` default, and the import-limit patterns. The code in Tasks 1–6 above is the code as it was before those fixes; git history has the final code.
+
+These items are open. Each later plan must do the item that is assigned to it:
+
+| Plan | Item |
+|---|---|
+| 2 | Add an oxlint override for `src/lib/digest.ts`, `src/lib/schemas.ts`, and `src/lib/model.ts` that blocks `node:*` and `bun` imports and the `Bun` global (the UI imports these files). |
+| 2 | `ANCHOR` is an exported `g` regex, so it has shared `lastIndex` state. Use it only with `matchAll`, or export a factory. |
+| 3 | Concurrent writes: the CLI runs procedures in-process while the server also writes `*.comments.json` and `config.json`. Design a lock file, or send all writes through one process. Today the last write wins. |
+| 3 | `workingCopyPath(repo, name)` must slug or validate its arguments before the server takes names from requests (path traversal). |
+| 4 | `resolveBase(root, ref?, head)` takes a git ref for `head`. Never pass `"worktree"`; map it to `"HEAD"`. |
+| 6 | Add the `react-hooks` plugin and the `rules-of-hooks` and `exhaustive-deps` rules (spec §11.2). |
+| any | `coverageGaps` matches a deleted file by a substring of its base name (`a.ts` matches `data.ts`). Behavior kept from the old tool. |
+| any | `expandHome` does not expand a bare `~`. |
+| 7 | Delete `scripts/install.mjs`, then remove its `ignorePatterns` entry. The suppression check also scans it until then. |
