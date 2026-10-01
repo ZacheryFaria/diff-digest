@@ -28,6 +28,7 @@ This is plan 1 of 7:
 - No suppression comments and no `suppressions.json` entries without explicit approval from the user (spec §11.3).
 - No `as` type assertions, except `as const`. Parse unknown data with zod.
 - No `any`. No non-null assertions (`!`).
+- Lint config: only the two approved changes in Task 1 Step 5. Do not turn off or weaken any other rule.
 - `src/lib` imports nothing from `src/cli`, `src/server`, `src/app`, or React. `src/lib/digest.ts` and `src/lib/schemas.ts` import no Node or Bun API, because the UI imports them.
 - Regular expressions use the `u` flag (oxlint `require-unicode-regexp`). Config patterns are also compiled with the `u` flag.
 - Commit messages: conventional commits with `minor`, `bugfix`, `major`, or `chore`. No co-author line.
@@ -41,6 +42,8 @@ This is plan 1 of 7:
 - `strict-boolean-expressions` is on. Write `s !== ""`, `x !== undefined`, and `x !== null`, not `if (s)`.
 - `noUncheckedIndexedAccess` is on. Array destructuring gives `T | undefined`. Check it, or give a default.
 - `exactOptionalPropertyTypes` is on. Do not assign `undefined` to an optional property. Leave the key out (`...(x === undefined ? {} : { x })`).
+- `no-redeclare` is on. Name each zod schema `XSchema`, and its type `X` (`type ChangedFile = z.infer<typeof ChangedFileSchema>`).
+- `prefer-readonly-parameter-types` is on. Every parameter must be deeply readonly, including callback parameters. The schemas use `.readonly()`, so parsed data is readonly. Do not take a `RegExp`, `Map`, `Set`, or mutable array as a parameter. Take a predicate `(path: string) => boolean`, a `Readonly<Record<…>>`, or a `readonly T[]`. To build an array, use a local mutable variable and a `for` loop.
 - On macOS, the temp folder is a symlink. Tests use `realpathSync`, because `git rev-parse --show-toplevel` prints the real path.
 
 ## File structure
@@ -87,7 +90,7 @@ The spec §3 lists `digest.ts` for coverage and frontmatter. This plan puts them
 
 **Interfaces:**
 - Produces: `bun run typecheck`, `bun run lint`, `bun run format`, `bun run test`, `bun run verify`.
-- Produces: `findSuppressions(files: readonly SourceFile[], allowed: readonly Suppression[]): Violation[]` and the `Suppression` schema in `scripts/check-suppressions.ts`.
+- Produces: `findSuppressions(files: readonly SourceFile[], allowed: readonly Suppression[]): Violation[]`, `SuppressionSchema`, and `type Suppression` in `scripts/check-suppressions.ts`.
 
 - [ ] **Step 1: Replace `package.json`**
 
@@ -172,10 +175,9 @@ dist/
 
 - [ ] **Step 5: Create `.oxlintrc.json`**
 
-Three rules are off in this config. Each one needs the user's approval, which is asked for in the plan handoff:
-- `no-redeclare`: it reports the zod pattern `const X = z.object(…)` + `type X = z.infer<typeof X>`. TypeScript checks real redeclarations.
-- `typescript/prefer-readonly-parameter-types`: zod-inferred types and branded types are not deeply readonly, so every callback parameter would need `Readonly<…>`.
-- `max-lines-per-function` in `test/**` only: `describe` blocks are long.
+The user approved exactly two changes from the full strict rule set. Do not add more without the user's approval:
+- `max-lines-per-function` is off in `test/**` only, because `describe` blocks are long. It stays on (50 lines) in `src/` and `scripts/`.
+- `typescript/prefer-readonly-parameter-types` has one `allow` entry: the `Sha` type from `src/lib/schemas.ts`. tsgolint counts the string methods of a branded string as mutable when the brand is inside an object.
 
 ```json
 {
@@ -188,7 +190,6 @@ Three rules are off in this config. Each one needs the user's approval, which is
         "pedantic": "error"
     },
     "rules": {
-        "no-redeclare": "off",
         "typescript/ban-ts-comment": [
             "error",
             {
@@ -220,7 +221,18 @@ Three rules are off in this config. Each one needs the user's approval, which is
         "typescript/strict-boolean-expressions": "error",
         "typescript/no-unnecessary-condition": "error",
         "typescript/prefer-nullish-coalescing": "error",
-        "typescript/prefer-readonly-parameter-types": "off"
+        "typescript/prefer-readonly-parameter-types": [
+            "error",
+            {
+                "allow": [
+                    {
+                        "from": "file",
+                        "name": "Sha",
+                        "path": "src/lib/schemas.ts"
+                    }
+                ]
+            }
+        ]
     },
     "overrides": [
         {
@@ -326,16 +338,18 @@ import { readFileSync } from "node:fs";
 import { z } from "zod";
 
 // Built from parts, so this file does not match itself.
-const BANNED: readonly string[] = [
-    ["@ts", "-ignore"],
-    ["@ts", "-expect-error"],
-    ["@ts", "-nocheck"],
-    ["oxlint", "-disable"],
-    ["eslint", "-disable"],
-    ["prettier", "-ignore"],
-].map(parts => parts.join(""));
+const BANNED: readonly string[] = (
+    [
+        ["@ts", "-ignore"],
+        ["@ts", "-expect-error"],
+        ["@ts", "-nocheck"],
+        ["oxlint", "-disable"],
+        ["eslint", "-disable"],
+        ["prettier", "-ignore"],
+    ] as const
+).map(parts => parts.join(""));
 
-export const Suppression = z.strictObject({
+export const SuppressionSchema = z.strictObject({
     file: z.string().min(1),
     /** Text that the suppressed line must contain. */
     text: z.string().min(1),
@@ -343,7 +357,7 @@ export const Suppression = z.strictObject({
     reason: z.string().min(1),
     approvedBy: z.string().min(1),
 });
-export type Suppression = z.infer<typeof Suppression>;
+export type Suppression = z.infer<typeof SuppressionSchema>;
 
 export interface SourceFile {
     readonly path: string;
@@ -370,7 +384,7 @@ export function findSuppressions(files: readonly SourceFile[], allowed: readonly
 }
 
 function main(): void {
-    const allowed = z.array(Suppression).parse(JSON.parse(readFileSync("suppressions.json", "utf8")));
+    const allowed = z.array(SuppressionSchema).parse(JSON.parse(readFileSync("suppressions.json", "utf8")));
     const files: SourceFile[] = [];
     for (const path of new Bun.Glob("{src,scripts,test}/**/*.{ts,tsx,js,mjs,css,html}").scanSync(".")) {
         files.push({ path, text: readFileSync(path, "utf8") });
@@ -410,6 +424,7 @@ Expected: `scripts/zz.ts:1: "@ts-ignore" is not allowed. …` and `exit=1`.
 - Run `bun run verify` before each commit. It must pass.
 - Do not add a lint, type, or format suppression (for example `@ts-expect-error` or an `oxlint-disable` comment). Do not add an entry to `suppressions.json`. Do not turn off a lint rule or a compiler option. If you think that one is necessary, stop and ask the user first.
 - Do not use `as` type assertions. Parse unknown data with the zod schemas in `src/lib/schemas.ts`. `as const` is allowed.
+- Name each zod schema `XSchema`, and its type `X`. Schemas use `.readonly()`. Build new values; do not change parsed values.
 - `src/lib` must not import from `src/cli`, `src/server`, `src/app`, or React. Files that the UI imports (`src/lib/digest.ts`, `src/lib/schemas.ts`) must not import Node or Bun APIs.
 - Write documentation in ASD-STE100 Simple Technical English.
 - Commits use conventional commits with the types `minor`, `bugfix`, `major`, and `chore`. Do not add a co-author line.
@@ -458,7 +473,7 @@ git commit -m "chore: add strict TypeScript toolchain and suppression check"
 **Interfaces:**
 - Consumes: the toolchain from Task 1.
 - Produces (`errors.ts`): `ERROR_CODES`, `type ErrorCode`, `EXIT_CODES: Readonly<Record<ErrorCode, number>>`, `class DigestError(code, message, options?: { hint?, data?, cause? })` with `code`, `hint`, `data`, `toJSON()`.
-- Produces (`schemas.ts`): `Sha` (branded), `FileStatus`, `FileClass`, `ChangedFile { status, path, oldPath, cls, untracked }`, `DiffLine { n, text }`, `Hunk { start, end, oldStart, oldCount, newStart, newCount, removed, added, size }`, `GithubBackendConfig`, `LocalBackendConfig`, `BackendConfig`, `RepoConfig`, `ConfigFile`, `Frontmatter { id, branch, base, head: Sha | null, pinned, meta }`, `DigestTarget`, `CodeTarget`, `CommentTarget`, `Comment`, `CommentsFile`. Each schema has a type with the same name.
+- Produces (`schemas.ts`): the type `Sha` (branded string), `isSha(value): value is Sha`, and these schema/type pairs: `ShaSchema`, `FileStatusSchema`/`FileStatus`, `FileClassSchema`/`FileClass`, `ChangedFileSchema`/`ChangedFile { status, path, oldPath, cls, untracked }`, `DiffLineSchema`/`DiffLine { n, text }`, `HunkSchema`/`Hunk { start, end, oldStart, oldCount, newStart, newCount, removed, added, size }`, `BackendConfigSchema`/`BackendConfig`, `RepoConfigSchema`/`RepoConfig`, `ConfigFileSchema`/`ConfigFile`, `FrontmatterSchema`/`Frontmatter { id, branch, base, head: Sha | null, pinned, meta }`, `CommentTargetSchema`/`CommentTarget`, `CommentSchema`/`Comment`, `CommentsFileSchema`. All types are deeply readonly.
 - Produces (`paths.ts`): `homeDir()`, `configPath(home?)`, `storeDir(home?)`, `expandHome(path)`.
 - Produces (`repo.ts`): `EMPTY_TREE: Sha`, `type Head = "worktree" | Sha`, `interface RepoContext { root; base: Sha; head: Head }`, `runGit(root, args, input?) → GitResult`, `git(root, args, input?) → string`, `findRepoRoot(cwd)`, `tryRev(root, ref) → Sha | null`, `rev(root, ref) → Sha`, `hasCommit`, `mergeBase`, `currentBranch`, `resolveBase(root, ref?, head = "HEAD") → Sha`, `originRepo(root) → OriginRepo | null`, `repoKeys(root) → readonly [string, ...string[]]`, `short(sha)`, `slug(value)`.
 - Produces (`test/helpers/repo.ts`): `makeRepo() → TestRepo { root, write(path, content), commit(message) → Sha, remove() }`, `tempDir(prefix)`, `expectDigestError(run, code) → DigestError`.
@@ -532,14 +547,22 @@ This file holds the final shapes for all plans. Later plans add schemas to it. T
 ```ts
 import { z } from "zod";
 
-/** A full 40-character commit or tree id. Parse with `Sha.parse` to get the branded type. */
-export const Sha = z
-    .string()
-    .regex(/^[0-9a-f]{40}$/u)
-    .brand<"Sha">();
-export type Sha = z.infer<typeof Sha>;
+// Naming: each schema is `XSchema`, and its type is `X`. The schemas are `.readonly()`, so the
+// inferred types are deeply readonly. Build new values; do not change parsed values.
 
-const Regex = z.string().refine(
+declare const shaBrand: unique symbol;
+/** A full 40-character commit or tree id. */
+export type Sha = string & { readonly [shaBrand]: true };
+
+const SHA = /^[0-9a-f]{40}$/u;
+
+export function isSha(value: unknown): value is Sha {
+    return typeof value === "string" && SHA.test(value);
+}
+
+export const ShaSchema = z.custom<Sha>(isSha, { message: "Expected a full 40-character sha" });
+
+const RegexSchema = z.string().refine(
     value => {
         try {
             return new RegExp(value, "u").source.length > 0;
@@ -552,89 +575,101 @@ const Regex = z.string().refine(
 
 // ---- diff ----
 
-export const FileStatus = z.enum(["A", "M", "D", "R", "C", "T", "U"]);
-export type FileStatus = z.infer<typeof FileStatus>;
+export const FileStatusSchema = z.enum(["A", "M", "D", "R", "C", "T", "U"]);
+export type FileStatus = z.infer<typeof FileStatusSchema>;
 
-export const FileClass = z.enum(["source", "test", "generated", "binary"]);
-export type FileClass = z.infer<typeof FileClass>;
+export const FileClassSchema = z.enum(["source", "test", "generated", "binary"]);
+export type FileClass = z.infer<typeof FileClassSchema>;
 
-export const ChangedFile = z.strictObject({
-    status: FileStatus,
-    path: z.string().min(1),
-    oldPath: z.string().min(1),
-    cls: FileClass,
-    untracked: z.boolean(),
-});
-export type ChangedFile = z.infer<typeof ChangedFile>;
+export const ChangedFileSchema = z
+    .strictObject({
+        status: FileStatusSchema,
+        path: z.string().min(1),
+        oldPath: z.string().min(1),
+        cls: FileClassSchema,
+        untracked: z.boolean(),
+    })
+    .readonly();
+export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 
-export const DiffLine = z.strictObject({ n: z.int().nonnegative(), text: z.string() });
-export type DiffLine = z.infer<typeof DiffLine>;
+export const DiffLineSchema = z.strictObject({ n: z.int().nonnegative(), text: z.string() }).readonly();
+export type DiffLine = z.infer<typeof DiffLineSchema>;
 
-export const Hunk = z.strictObject({
-    start: z.int().positive(),
-    end: z.int().positive(),
-    oldStart: z.int().nonnegative(),
-    oldCount: z.int().nonnegative(),
-    newStart: z.int().nonnegative(),
-    newCount: z.int().nonnegative(),
-    removed: z.array(DiffLine),
-    added: z.array(DiffLine),
-    size: z.int().nonnegative(),
-});
-export type Hunk = z.infer<typeof Hunk>;
+export const HunkSchema = z
+    .strictObject({
+        start: z.int().positive(),
+        end: z.int().positive(),
+        oldStart: z.int().nonnegative(),
+        oldCount: z.int().nonnegative(),
+        newStart: z.int().nonnegative(),
+        newCount: z.int().nonnegative(),
+        removed: z.array(DiffLineSchema).readonly(),
+        added: z.array(DiffLineSchema).readonly(),
+        size: z.int().nonnegative(),
+    })
+    .readonly();
+export type Hunk = z.infer<typeof HunkSchema>;
 
 // ---- config file (~/.diff-digest/config.json) ----
 
-export const GithubBackendConfig = z.strictObject({ type: z.literal("github") });
+const GithubBackendConfigSchema = z.strictObject({ type: z.literal("github") });
 
-export const LocalBackendConfig = z.strictObject({
+const LocalBackendConfigSchema = z.strictObject({
     type: z.literal("local"),
     dir: z.string().min(1),
     linkTemplate: z.string().optional(),
-    frontmatter: z.record(z.string(), z.unknown()).optional(),
+    frontmatter: z.record(z.string(), z.unknown()).readonly().optional(),
 });
 
-export const BackendConfig = z.discriminatedUnion("type", [GithubBackendConfig, LocalBackendConfig]);
-export type BackendConfig = z.infer<typeof BackendConfig>;
+export const BackendConfigSchema = z
+    .discriminatedUnion("type", [GithubBackendConfigSchema, LocalBackendConfigSchema])
+    .readonly();
+export type BackendConfig = z.infer<typeof BackendConfigSchema>;
 
-export const RepoConfig = z.strictObject({
-    generated: z.array(Regex).optional(),
-    publishTo: z.array(z.string().min(1)).optional(),
-});
-export type RepoConfig = z.infer<typeof RepoConfig>;
+export const RepoConfigSchema = z
+    .strictObject({
+        generated: z.array(RegexSchema).readonly().optional(),
+        publishTo: z.array(z.string().min(1)).readonly().optional(),
+    })
+    .readonly();
+export type RepoConfig = z.infer<typeof RepoConfigSchema>;
 
 /** The config file as it is on disk. Every key is optional; `resolveConfig` fills in the defaults. */
-export const ConfigFile = z.strictObject({
-    backends: z.record(z.string().min(1), BackendConfig).optional(),
-    publishTo: z.array(z.string().min(1)).optional(),
-    generated: z.array(Regex).optional(),
-    repos: z.record(z.string().min(1), RepoConfig).optional(),
-});
-export type ConfigFile = z.infer<typeof ConfigFile>;
+export const ConfigFileSchema = z
+    .strictObject({
+        backends: z.record(z.string().min(1), BackendConfigSchema).readonly().optional(),
+        publishTo: z.array(z.string().min(1)).readonly().optional(),
+        generated: z.array(RegexSchema).readonly().optional(),
+        repos: z.record(z.string().min(1), RepoConfigSchema).readonly().optional(),
+    })
+    .readonly();
+export type ConfigFile = z.infer<typeof ConfigFileSchema>;
 
 // ---- digest frontmatter (tool-owned) ----
 
-export const Frontmatter = z.strictObject({
-    id: z.string().regex(/^[0-9a-z]{8}$/u),
-    branch: z.string(),
-    base: Sha,
-    /** null: the head is the working tree. */
-    head: Sha.nullable(),
-    pinned: z.boolean(),
-    meta: z.record(z.string(), z.unknown()),
-});
-export type Frontmatter = z.infer<typeof Frontmatter>;
+export const FrontmatterSchema = z
+    .strictObject({
+        id: z.string().regex(/^[0-9a-z]{8}$/u),
+        branch: z.string(),
+        base: ShaSchema,
+        /** null: the head is the working tree. */
+        head: ShaSchema.nullable(),
+        pinned: z.boolean(),
+        meta: z.record(z.string(), z.unknown()).readonly(),
+    })
+    .readonly();
+export type Frontmatter = z.infer<typeof FrontmatterSchema>;
 
 // ---- comments (<name>.comments.json) ----
 
-export const DigestTarget = z.strictObject({
+const DigestTargetSchema = z.strictObject({
     kind: z.literal("digest"),
     cid: z.string().min(1),
     section: z.string(),
     text: z.string(),
 });
 
-export const CodeTarget = z
+const CodeTargetSchema = z
     .strictObject({
         kind: z.literal("code"),
         path: z.string().min(1),
@@ -645,23 +680,25 @@ export const CodeTarget = z
     })
     .refine(t => t.endLine === undefined || t.endLine >= t.line, { message: "endLine must not be before line" });
 
-export const CommentTarget = z.discriminatedUnion("kind", [DigestTarget, CodeTarget]);
-export type CommentTarget = z.infer<typeof CommentTarget>;
+export const CommentTargetSchema = z.discriminatedUnion("kind", [DigestTargetSchema, CodeTargetSchema]).readonly();
+export type CommentTarget = z.infer<typeof CommentTargetSchema>;
 
-export const Comment = z.strictObject({
-    id: z.string().min(1),
-    created: z.iso.datetime(),
-    author: z.enum(["user", "agent"]),
-    status: z.enum(["open", "resolved", "note", "shared"]),
-    target: CommentTarget,
-    body: z.string().min(1),
-    reply: z.string().optional(),
-    /** Where a shared comment was posted (for example a PR comment URL). */
-    ref: z.string().optional(),
-});
-export type Comment = z.infer<typeof Comment>;
+export const CommentSchema = z
+    .strictObject({
+        id: z.string().min(1),
+        created: z.iso.datetime(),
+        author: z.enum(["user", "agent"]),
+        status: z.enum(["open", "resolved", "note", "shared"]),
+        target: CommentTargetSchema,
+        body: z.string().min(1),
+        reply: z.string().optional(),
+        /** Where a shared comment was posted (for example a PR comment URL). */
+        ref: z.string().optional(),
+    })
+    .readonly();
+export type Comment = z.infer<typeof CommentSchema>;
 
-export const CommentsFile = z.array(Comment);
+export const CommentsFileSchema = z.array(CommentSchema).readonly();
 ```
 
 - [ ] **Step 3: Create `src/lib/paths.ts`**
@@ -701,9 +738,9 @@ import type { Sha } from "../../src/lib/schemas";
 
 export interface TestRepo {
     readonly root: string;
-    write: (path: string, content: string | Uint8Array) => void;
-    commit: (message: string) => Sha;
-    remove: () => void;
+    readonly write: (path: string, content: string | readonly number[]) => void;
+    readonly commit: (message: string) => Sha;
+    readonly remove: () => void;
 }
 
 export function tempDir(prefix: string): string {
@@ -723,7 +760,7 @@ export function makeRepo(): TestRepo {
         write: (path, content) => {
             const full = join(root, path);
             mkdirSync(dirname(full), { recursive: true });
-            writeFileSync(full, content);
+            writeFileSync(full, typeof content === "string" ? content : new Uint8Array(content));
         },
         commit: message => {
             git(root, ["add", "-A"]);
@@ -806,10 +843,10 @@ Expected: FAIL. The module `../../src/lib/repo` is not found.
 ```ts
 import { basename } from "node:path";
 import { DigestError } from "./errors";
-import { Sha } from "./schemas";
+import { ShaSchema, type Sha } from "./schemas";
 
 /** git's empty tree. It is the base in a repo that has no commits yet. */
-export const EMPTY_TREE: Sha = Sha.parse("4b825dc642cb6eb9a060e54bf8d69288fbee4904");
+export const EMPTY_TREE: Sha = ShaSchema.parse("4b825dc642cb6eb9a060e54bf8d69288fbee4904");
 
 /** "worktree" means the working tree, including untracked files. */
 export type Head = "worktree" | Sha;
@@ -868,7 +905,7 @@ export function tryRev(root: string, ref: string): Sha | null {
     if (ref === EMPTY_TREE) return EMPTY_TREE;
     if (ref === "") return null;
     const result = runGit(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
-    return result.ok ? Sha.parse(result.stdout.trim()) : null;
+    return result.ok ? ShaSchema.parse(result.stdout.trim()) : null;
 }
 
 export function rev(root: string, ref: string): Sha {
@@ -882,7 +919,7 @@ export function hasCommit(root: string, sha: string): boolean {
 }
 
 export function mergeBase(root: string, a: string, b: string): Sha {
-    return Sha.parse(git(root, ["merge-base", a, b]).trim());
+    return ShaSchema.parse(git(root, ["merge-base", a, b]).trim());
 }
 
 /** The current branch name, or "" when HEAD is detached. */
@@ -896,7 +933,7 @@ export function resolveBase(root: string, ref?: string, head = "HEAD"): Sha {
     if (head === "HEAD" && tryRev(root, "HEAD") === null) return EMPTY_TREE;
     for (const branch of ["origin/HEAD", "origin/main", "origin/master", "main", "master"]) {
         const result = runGit(root, ["merge-base", head, branch]);
-        if (result.ok) return Sha.parse(result.stdout.trim());
+        if (result.ok) return ShaSchema.parse(result.stdout.trim());
     }
     throw new DigestError("NOT_FOUND", "No base found.", { hint: "Give a base ref." });
 }
@@ -955,7 +992,7 @@ git commit -m "minor: add lib errors, schemas, paths, and git layer"
 - Test: `test/lib/frontmatter.test.ts`
 
 **Interfaces:**
-- Consumes: `ChangedFile`, `Frontmatter`, `Sha` (Task 2), `DigestError` (Task 2), `expectDigestError` (Task 2).
+- Consumes: `ChangedFile`, `Frontmatter`, `FrontmatterSchema`, `ShaSchema` (Task 2), `DigestError` (Task 2), `expectDigestError` (Task 2).
 - Produces (`digest.ts`): `interface Anchor { path; start; end }`, `ANCHOR` (global regex), `anchors(md) → Anchor[]`, `matchesPath(file, suffix) → boolean`, `findFile(files, suffix) → ChangedFile | undefined`, `blockId(section, text) → string`.
 - Produces (`frontmatter.ts`): `interface ParsedDigest { frontmatter: Frontmatter; body: string }`, `parseDigest(md) → ParsedDigest` (throws `BAD_INPUT`), `serializeDigest(frontmatter, body) → string`.
 
@@ -997,13 +1034,13 @@ describe("digest helpers", () => {
 ```ts
 import { describe, expect, test } from "bun:test";
 import { parseDigest, serializeDigest } from "../../src/lib/frontmatter";
-import { Sha, type Frontmatter } from "../../src/lib/schemas";
+import { ShaSchema, type Frontmatter } from "../../src/lib/schemas";
 import { expectDigestError } from "../helpers/repo";
 
 const FM: Frontmatter = {
     id: "k3f9a0b2",
     branch: "zf/foo",
-    base: Sha.parse("a".repeat(40)),
+    base: ShaSchema.parse("a".repeat(40)),
     head: null,
     pinned: false,
     meta: { pr: "https://github.com/o/r/pull/1" },
@@ -1087,7 +1124,7 @@ export function blockId(section: string, text: string): string {
 ```ts
 import { z } from "zod";
 import { DigestError } from "./errors";
-import { Frontmatter } from "./schemas";
+import { FrontmatterSchema, type Frontmatter } from "./schemas";
 
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/u;
 
@@ -1105,7 +1142,7 @@ export function parseDigest(md: string): ParsedDigest {
             hint: "Create it with `diff-digest init`.",
         });
     }
-    const result = Frontmatter.safeParse(Bun.YAML.parse(raw));
+    const result = FrontmatterSchema.safeParse(Bun.YAML.parse(raw));
     if (!result.success) {
         throw new DigestError("BAD_INPUT", `The digest frontmatter is not valid:\n${z.prettifyError(result.error)}`);
     }
@@ -1113,7 +1150,7 @@ export function parseDigest(md: string): ParsedDigest {
 }
 
 export function serializeDigest(frontmatter: Readonly<Frontmatter>, body: string): string {
-    const yaml = Bun.YAML.stringify(Frontmatter.parse(frontmatter), null, 2).trimEnd();
+    const yaml = Bun.YAML.stringify(FrontmatterSchema.parse(frontmatter), null, 2).trimEnd();
     return `---\n${yaml}\n---\n${body.startsWith("\n") ? body : `\n${body}`}`;
 }
 ```
@@ -1142,9 +1179,9 @@ git commit -m "minor: add digest helpers and YAML frontmatter"
 - Test: `test/lib/diff.test.ts`
 
 **Interfaces:**
-- Consumes: `RepoContext`, `git`, `runGit`, `rev`, `EMPTY_TREE` (Task 2), `ChangedFile`, `FileStatus`, `FileClass`, `Hunk` (Task 2), `makeRepo` (Task 2).
-- Produces: `BUILTIN_GENERATED: readonly RegExp[]`, `newText(ctx, path)`, `newExists(ctx, path)`, `isBinaryFile(fullPath)`, `changedFiles(ctx, generated: readonly RegExp[]) → ChangedFile[]`, `parseDiff(text) → Hunk[]`, `rawDiff(ctx, file, context = 0) → string`, `importLines(text) → Set<number>`, `reviewableHunks(ctx, file) → Hunk[]`, `isReviewable(file)`, `diffLineCount(ctx, files)`.
-- Behavior: the same as `changedFiles`, `parseDiff`, `rawDiff`, `reviewableHunks`, `importLines`, and `diffLineCount` in `bin/diff-digest.mjs`, with untracked files in working-tree mode. `changedFiles` takes the config patterns as a parameter. It does not read the config.
+- Consumes: `RepoContext`, `git`, `runGit`, `rev`, `EMPTY_TREE` (Task 2), `ChangedFileSchema`, `FileStatusSchema`, `ChangedFile`, `DiffLine`, `FileClass`, `Hunk` (Task 2), `makeRepo` (Task 2).
+- Produces: `BUILTIN_GENERATED: readonly RegExp[]`, `isBuiltinGenerated(path) → boolean`, `newText(ctx, path)`, `newExists(ctx, path)`, `isBinaryFile(fullPath)`, `changedFiles(ctx, isGenerated: (path: string) => boolean) → ChangedFile[]`, `parseDiff(text) → Hunk[]`, `rawDiff(ctx, file, context = 0) → string`, `importLines(text) → Set<number>`, `reviewableHunks(ctx, file) → Hunk[]`, `isReviewable(file)`, `diffLineCount(ctx, files)`.
+- Behavior: the same as `changedFiles`, `parseDiff`, `rawDiff`, `reviewableHunks`, `importLines`, and `diffLineCount` in `bin/diff-digest.mjs`, with untracked files in working-tree mode. `changedFiles` takes the config test as a predicate (from `generatedMatcher` in Task 6). It does not read the config.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1189,7 +1226,7 @@ describe("changedFiles", () => {
         repo.write("a.ts", "export const a = 2;\n");
         repo.write("new.ts", "export const n = 1;\n");
         const ctx = worktree(repo);
-        const files = changedFiles(ctx, []);
+        const files = changedFiles(ctx, () => false);
         expect(byPath(files, "a.ts")).toMatchObject({ status: "M", cls: "source", untracked: false });
         const added = byPath(files, "new.ts");
         expect(added).toMatchObject({ status: "A", cls: "source", untracked: true });
@@ -1201,13 +1238,13 @@ describe("changedFiles", () => {
         repo.write(".gitignore", "dist/\n");
         repo.commit("init");
         repo.write("dist/out.js", "x\n");
-        expect(changedFiles(worktree(repo), [])).toEqual([]);
+        expect(changedFiles(worktree(repo), () => false)).toEqual([]);
     });
 
     test("works in a repo with no commits", () => {
         repo = makeRepo();
         repo.write("x.ts", "x\n");
-        const files = changedFiles({ root: repo.root, base: EMPTY_TREE, head: "worktree" }, []);
+        const files = changedFiles({ root: repo.root, base: EMPTY_TREE, head: "worktree" }, () => false);
         expect(files.map(f => f.path)).toEqual(["x.ts"]);
     });
 
@@ -1219,8 +1256,8 @@ describe("changedFiles", () => {
         repo.write("gen/api.ts", "x\n");
         repo.write("src/a.test.ts", "x\n");
         repo.write("src/BUILD.bazel", "x\n");
-        repo.write("img.bin", new Uint8Array([1, 0, 2]));
-        const files = changedFiles(worktree(repo), [/(^|\/)BUILD\.bazel$/u]);
+        repo.write("img.bin", [1, 0, 2]);
+        const files = changedFiles(worktree(repo), path => path.endsWith("BUILD.bazel"));
         expect(byPath(files, "pnpm-lock.yaml").cls).toBe("generated");
         expect(byPath(files, "gen/api.ts").cls).toBe("generated");
         expect(byPath(files, "src/a.test.ts").cls).toBe("test");
@@ -1236,7 +1273,7 @@ describe("changedFiles", () => {
         const head = repo.commit("change");
         repo.write("a.ts", "3\n");
         repo.write("untracked.ts", "x\n");
-        const files = changedFiles({ root: repo.root, base, head }, []);
+        const files = changedFiles({ root: repo.root, base, head }, () => false);
         expect(files.map(f => f.path)).toEqual(["a.ts"]);
         expect(rawDiff({ root: repo.root, base, head }, byPath(files, "a.ts"))).toContain("+2");
     });
@@ -1249,7 +1286,7 @@ describe("reviewableHunks", () => {
         repo.commit("init");
         repo.write("a.ts", 'import { x, y } from "./x";\n\nexport const a = x;\n');
         const ctx = worktree(repo);
-        const [file] = changedFiles(ctx, []);
+        const [file] = changedFiles(ctx, () => false);
         if (file === undefined) throw new Error("no changed file");
         expect(reviewableHunks(ctx, file)).toEqual([]);
     });
@@ -1260,7 +1297,7 @@ describe("reviewableHunks", () => {
         repo.commit("init");
         repo.write("a.ts", "export const b = 2;\nexport const c = 3;\nexport const a = 1;\n");
         const ctx = worktree(repo);
-        const [file] = changedFiles(ctx, []);
+        const [file] = changedFiles(ctx, () => false);
         if (file === undefined) throw new Error("no changed file");
         expect(reviewableHunks(ctx, file)).toEqual([]);
     });
@@ -1271,7 +1308,7 @@ describe("reviewableHunks", () => {
         repo.commit("init");
         repo.write("a.ts", "export const a = 2;\n");
         const ctx = worktree(repo);
-        const [file] = changedFiles(ctx, []);
+        const [file] = changedFiles(ctx, () => false);
         if (file === undefined) throw new Error("no changed file");
         expect(reviewableHunks(ctx, file).map(h => [h.start, h.end])).toEqual([[1, 1]]);
     });
@@ -1288,7 +1325,14 @@ Expected: FAIL. The module `../../src/lib/diff` is not found.
 ```ts
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ChangedFile, FileStatus, type FileClass, type Hunk } from "./schemas";
+import {
+    ChangedFileSchema,
+    FileStatusSchema,
+    type ChangedFile,
+    type DiffLine,
+    type FileClass,
+    type Hunk,
+} from "./schemas";
 import { git, runGit, type RepoContext } from "./repo";
 
 export const BUILTIN_GENERATED: readonly RegExp[] = [
@@ -1298,6 +1342,12 @@ export const BUILTIN_GENERATED: readonly RegExp[] = [
     /\.pb\.(ts|go)$|_pb2\.py$/u,
     /\.min\.(js|css)$|\.map$/u,
 ];
+
+/** True when a built-in pattern marks the path as generated. */
+export function isBuiltinGenerated(path: string): boolean {
+    for (const pattern of BUILTIN_GENERATED) if (pattern.test(path)) return true;
+    return false;
+}
 
 const TEST = /(\.(test|spec)\.[cm]?[jt]sx?$)|(\/__tests__\/)|(_test\.(go|py)$)|((^|\/)test_[^/]+\.py$)/u;
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
@@ -1327,13 +1377,13 @@ export function isBinaryFile(fullPath: string): boolean {
  * The files that changed between the base and the head, with a class for each file.
  * For the working tree, untracked files that .gitignore does not exclude count as added.
  */
-export function changedFiles(ctx: RepoContext, generated: readonly RegExp[]): ChangedFile[] {
+export function changedFiles(ctx: RepoContext, isGenerated: (path: string) => boolean): ChangedFile[] {
     const range = rangeArgs(ctx);
     const entries: Omit<ChangedFile, "cls">[] = [];
     for (const line of git(ctx.root, ["diff", "--no-ext-diff", "--name-status", "-M", ...range]).split("\n")) {
         const [status, a, b] = line.split("\t");
         if (status === undefined || a === undefined || status === "") continue;
-        entries.push({ status: FileStatus.parse(status.charAt(0)), oldPath: a, path: b ?? a, untracked: false });
+        entries.push({ status: FileStatusSchema.parse(status.charAt(0)), oldPath: a, path: b ?? a, untracked: false });
     }
     if (ctx.head === "worktree") {
         for (const path of git(ctx.root, ["ls-files", "-z", "--others", "--exclude-standard"]).split("\0")) {
@@ -1346,23 +1396,28 @@ export function changedFiles(ctx: RepoContext, generated: readonly RegExp[]): Ch
         ctx,
         entries.map(e => e.path),
     );
-    return entries.map(e => ChangedFile.parse({ ...e, cls: classify(e.path, attrs.get(e.path), binary, generated) }));
+    return entries.map(e =>
+        ChangedFileSchema.parse({
+            ...e,
+            cls: classify(e.path, attrs.get(e.path) ?? {}, binary.has(e.path), isGenerated),
+        }),
+    );
+}
+
+function isAttrSet(value: string | undefined): boolean {
+    return value === "set" || value === "true";
 }
 
 function classify(
     path: string,
-    attrs: ReadonlyMap<string, string> | undefined,
-    binary: ReadonlySet<string>,
-    generated: readonly RegExp[],
+    attrs: Readonly<Record<string, string>>,
+    binary: boolean,
+    isGenerated: (path: string) => boolean,
 ): FileClass {
-    const isSet = (name: string): boolean => {
-        const value = attrs?.get(name);
-        return value === "set" || value === "true";
-    };
     // linguist-generated=false only changes GitHub's diff view, so it does not make a file reviewable.
-    if (isSet("linguist-generated") || isSet("linguist-vendored")) return "generated";
-    if (attrs?.get("filter") === "lfs" || binary.has(path)) return "binary";
-    if ([...BUILTIN_GENERATED, ...generated].some(r => r.test(path))) return "generated";
+    if (isAttrSet(attrs["linguist-generated"]) || isAttrSet(attrs["linguist-vendored"])) return "generated";
+    if (attrs["filter"] === "lfs" || binary) return "binary";
+    if (isBuiltinGenerated(path) || isGenerated(path)) return "generated";
     return TEST.test(path) ? "test" : "source";
 }
 
@@ -1381,8 +1436,8 @@ function binaryPaths(ctx: RepoContext, range: readonly string[]): Set<string> {
     return out;
 }
 
-function checkAttrs(ctx: RepoContext, paths: readonly string[]): Map<string, Map<string, string>> {
-    const attrs = new Map<string, Map<string, string>>();
+function checkAttrs(ctx: RepoContext, paths: readonly string[]): Map<string, Record<string, string>> {
+    const attrs = new Map<string, Record<string, string>>();
     if (paths.length === 0) return attrs;
     const source = ctx.head === "worktree" ? [] : [`--source=${ctx.head}`];
     const out = git(
@@ -1393,16 +1448,20 @@ function checkAttrs(ctx: RepoContext, paths: readonly string[]): Map<string, Map
     for (let i = 0; i + 2 < out.length; i += 3) {
         const [path, name, value] = [out[i], out[i + 1], out[i + 2]];
         if (path === undefined || name === undefined || value === undefined) continue;
-        const map = attrs.get(path) ?? new Map<string, string>();
-        map.set(name, value);
-        attrs.set(path, map);
+        attrs.set(path, { ...attrs.get(path), [name]: value });
     }
     return attrs;
 }
 
+interface HunkBuilder {
+    readonly header: Omit<Hunk, "removed" | "added" | "size">;
+    readonly removed: DiffLine[];
+    readonly added: DiffLine[];
+}
+
 export function parseDiff(text: string): Hunk[] {
-    const hunks: Hunk[] = [];
-    let current: Hunk | null = null;
+    const builders: HunkBuilder[] = [];
+    let current: HunkBuilder | null = null;
     let oldN = 0;
     let newN = 0;
     for (const line of text.split("\n")) {
@@ -1413,17 +1472,18 @@ export function parseDiff(text: string): Hunk[] {
             newN = Number(newStart);
             const count = newCount === undefined ? 1 : Number(newCount);
             current = {
-                start: Math.max(newN, 1),
-                end: Math.max(newN + count - 1, newN, 1),
-                oldStart: oldN,
-                oldCount: oldCount === undefined ? 1 : Number(oldCount),
-                newStart: newN,
-                newCount: count,
+                header: {
+                    start: Math.max(newN, 1),
+                    end: Math.max(newN + count - 1, newN, 1),
+                    oldStart: oldN,
+                    oldCount: oldCount === undefined ? 1 : Number(oldCount),
+                    newStart: newN,
+                    newCount: count,
+                },
                 removed: [],
                 added: [],
-                size: 0,
             };
-            hunks.push(current);
+            builders.push(current);
         } else if (current === null || /^(\+\+\+|---) /u.test(line)) {
             continue;
         } else if (line.startsWith("-")) {
@@ -1437,7 +1497,11 @@ export function parseDiff(text: string): Hunk[] {
             newN += 1;
         }
     }
-    return hunks.map(h => ({ ...h, size: h.removed.length + h.added.length }));
+    const hunks: Hunk[] = [];
+    for (const b of builders) {
+        hunks.push({ ...b.header, removed: b.removed, added: b.added, size: b.removed.length + b.added.length });
+    }
+    return hunks;
 }
 
 export function rawDiff(ctx: RepoContext, file: Readonly<ChangedFile>, context = 0): string {
@@ -1548,13 +1612,25 @@ function setup(): RepoContext {
 describe("coverageGaps", () => {
     test("reports a hunk that no anchor touches", () => {
         const ctx = setup();
-        expect(coverageGaps(ctx, "# Title\n", changedFiles(ctx, []))).toEqual(["src/a.ts:2-2", "src/gone.ts:1-1"]);
+        expect(
+            coverageGaps(
+                ctx,
+                "# Title\n",
+                changedFiles(ctx, () => false),
+            ),
+        ).toEqual(["src/a.ts:2-2", "src/gone.ts:1-1"]);
     });
 
     test("an anchor on a path suffix next to the hunk covers it", () => {
         const ctx = setup();
         const md = "- b changed: `a.ts:1`\n- gone emptied: `gone.ts:1`\n";
-        expect(coverageGaps(ctx, md, changedFiles(ctx, []))).toEqual([]);
+        expect(
+            coverageGaps(
+                ctx,
+                md,
+                changedFiles(ctx, () => false),
+            ),
+        ).toEqual([]);
     });
 });
 ```
@@ -1619,9 +1695,9 @@ git commit -m "minor: add anchor coverage check"
 - Test: `test/lib/config.test.ts`
 
 **Interfaces:**
-- Consumes: `storeDir`, `configPath` (Task 2), `CommentsFile`, `Comment`, `ConfigFile`, `BackendConfig`, `RepoConfig` (Task 2), `DigestError` (Task 2).
-- Produces (`store.ts`): `writeAtomic(path, data)`, `readJson(path) → unknown`, `workingCopyPath(repo, name, home?)`, `commentsPath(mdPath)`, `readComments(mdPath) → Comment[]` (throws `BAD_INPUT`), `writeComments(mdPath, comments)`.
-- Produces (`config.ts`): `interface ResolvedConfig { repoKeys; key; backends; publishTo; generated; repoGenerated }`, `readConfigFile(path?) → ConfigFile` (throws `BAD_CONFIG`), `resolveConfig(file, repoKeys) → ResolvedConfig` (throws `BAD_CONFIG` when `publishTo` names a missing backend), `generatedPatterns(config) → RegExp[]`, `exactPattern(path)`, `setGenerated(path, on, repoKeys, file?)`.
+- Consumes: `storeDir`, `configPath` (Task 2), `CommentsFileSchema`, `Comment`, `ConfigFileSchema`, `ConfigFile`, `BackendConfigSchema`, `BackendConfig`, `RepoConfig` (Task 2), `DigestError` (Task 2).
+- Produces (`store.ts`): `writeAtomic(path, data)`, `readJson(path) → unknown`, `workingCopyPath(repo, name, home?)`, `commentsPath(mdPath)`, `readComments(mdPath) → readonly Comment[]` (throws `BAD_INPUT`), `writeComments(mdPath, comments)`.
+- Produces (`config.ts`): `interface ResolvedConfig { repoKeys; key; backends; publishTo; generated; repoGenerated }`, `readConfigFile(path?) → ConfigFile` (throws `BAD_CONFIG`), `resolveConfig(file, repoKeys) → ResolvedConfig` (throws `BAD_CONFIG` when `publishTo` names a missing backend), `generatedMatcher(config) → (path: string) => boolean`, `exactPattern(path)`, `setGenerated(path, on, repoKeys, file?)`.
 - Defaults: with no `backends`, the only backend is `github: { type: "github" }`. With no `publishTo`, it is `["github"]`. `setGenerated` writes back only the keys that were in the file, plus the changed repo entry. It never writes the defaults.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1777,7 +1853,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { DigestError } from "./errors";
 import { storeDir } from "./paths";
-import { CommentsFile, type Comment } from "./schemas";
+import { CommentsFileSchema, type Comment } from "./schemas";
 
 /** Writes a temp file in the same folder, then renames it, so a reader never sees half a file. */
 export function writeAtomic(path: string, data: string): void {
@@ -1804,10 +1880,10 @@ export function commentsPath(mdPath: string): string {
     return `${mdPath.replace(/\.md$/u, "")}.comments.json`;
 }
 
-export function readComments(mdPath: string): Comment[] {
+export function readComments(mdPath: string): readonly Comment[] {
     const path = commentsPath(mdPath);
     if (!existsSync(path)) return [];
-    const result = CommentsFile.safeParse(readJson(path));
+    const result = CommentsFileSchema.safeParse(readJson(path));
     if (!result.success) {
         throw new DigestError(
             "BAD_INPUT",
@@ -1818,7 +1894,7 @@ export function readComments(mdPath: string): Comment[] {
 }
 
 export function writeComments(mdPath: string, comments: readonly Comment[]): void {
-    writeAtomic(commentsPath(mdPath), `${JSON.stringify(CommentsFile.parse(comments), null, 2)}\n`);
+    writeAtomic(commentsPath(mdPath), `${JSON.stringify(CommentsFileSchema.parse(comments), null, 2)}\n`);
 }
 ```
 
@@ -1829,7 +1905,7 @@ import { existsSync } from "node:fs";
 import { z } from "zod";
 import { DigestError } from "./errors";
 import { configPath } from "./paths";
-import { BackendConfig, ConfigFile, type RepoConfig } from "./schemas";
+import { BackendConfigSchema, ConfigFileSchema, type BackendConfig, type ConfigFile, type RepoConfig } from "./schemas";
 import { readJson, writeAtomic } from "./store";
 
 export interface ResolvedConfig {
@@ -1844,11 +1920,13 @@ export interface ResolvedConfig {
     readonly repoGenerated: readonly string[];
 }
 
-const DEFAULT_BACKENDS: Readonly<Record<string, BackendConfig>> = { github: BackendConfig.parse({ type: "github" }) };
+const DEFAULT_BACKENDS: Readonly<Record<string, BackendConfig>> = {
+    github: BackendConfigSchema.parse({ type: "github" }),
+};
 
 export function readConfigFile(path: string = configPath()): ConfigFile {
     if (!existsSync(path)) return {};
-    const result = ConfigFile.safeParse(readJson(path));
+    const result = ConfigFileSchema.safeParse(readJson(path));
     if (!result.success) {
         throw new DigestError("BAD_CONFIG", `${path} is not valid:\n${z.prettifyError(result.error)}`);
     }
@@ -1875,8 +1953,13 @@ export function resolveConfig(file: Readonly<ConfigFile>, repoKeys: readonly [st
     };
 }
 
-export function generatedPatterns(config: ResolvedConfig): RegExp[] {
-    return config.generated.map(r => new RegExp(r, "u"));
+/** A test for the config's generated patterns. The patterns are compiled once. */
+export function generatedMatcher(config: ResolvedConfig): (path: string) => boolean {
+    const patterns = config.generated.map(r => new RegExp(r, "u"));
+    return path => {
+        for (const pattern of patterns) if (pattern.test(path)) return true;
+        return false;
+    };
 }
 
 /** The pattern that "Mark generated" writes for one file. */
@@ -1896,7 +1979,7 @@ export function setGenerated(
     const repo = current.repos?.[key] ?? {};
     const pattern = exactPattern(path);
     const rest = (repo.generated ?? []).filter(r => r !== pattern);
-    const next = ConfigFile.parse({
+    const next = ConfigFileSchema.parse({
         ...current,
         repos: { ...current.repos, [key]: { ...repo, generated: on ? [...rest, pattern] : rest } },
     });
