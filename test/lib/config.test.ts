@@ -25,6 +25,13 @@ describe("config", () => {
         expect(resolved.generated).toEqual([]);
     });
 
+    test("a file that is not JSON is BAD_CONFIG", () => {
+        dir = tempDir("dd-config-");
+        const path = join(dir, "config.json");
+        writeFileSync(path, "{ not json");
+        expectDigestError(() => readConfigFile(path), "BAD_CONFIG");
+    });
+
     test("an unknown key is BAD_CONFIG", () => {
         const path = configFile({ digestDir: "~/x" });
         expectDigestError(() => readConfigFile(path), "BAD_CONFIG");

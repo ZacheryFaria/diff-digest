@@ -23,7 +23,13 @@ const DEFAULT_BACKENDS: Readonly<Record<string, BackendConfig>> = {
 
 export function readConfigFile(path: string = configPath()): ConfigFile {
     if (!existsSync(path)) return {};
-    const result = ConfigFileSchema.safeParse(readJson(path));
+    let raw: unknown;
+    try {
+        raw = readJson(path);
+    } catch (error) {
+        throw new DigestError("BAD_CONFIG", `${path} is not valid JSON.`, { cause: error });
+    }
+    const result = ConfigFileSchema.safeParse(raw);
     if (!result.success) {
         throw new DigestError("BAD_CONFIG", `${path} is not valid:\n${z.prettifyError(result.error)}`);
     }
