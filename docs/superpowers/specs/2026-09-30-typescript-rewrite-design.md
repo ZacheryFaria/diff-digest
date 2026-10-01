@@ -98,7 +98,7 @@ Dependency rules between folders:
 
 - `cli` → `lib` and `server`.
 - `server` → `lib`.
-- `app` → only `lib/schemas.ts`, `lib/contract.ts`, and the pure helpers in `lib/digest.ts` and `lib/model.ts`. It imports no Node or Bun API.
+- `app` → only the pure lib files: `schemas.ts`, `schemas-api.ts`, `contract.ts`, `client.ts`, `digest.ts`, `md.ts`, `model.ts`, and `render.ts`. It imports no Node or Bun API.
 - `lib` → no other folder in `src`.
 
 An oxlint `no-restricted-imports` rule for each folder enforces these rules.
@@ -118,7 +118,8 @@ There is one server for each user. No launchd and no systemd. The CLI manages th
 | `server run [--dev]` | Runs in the foreground. `serve` uses this internally. `--dev` turns on HMR. |
 
 - **Start:** `serve` spawns `process.execPath server run` with `detached: true`, sends the output to `server.log`, calls `unref()`, and exits.
-- **Files:** `~/.diff-digest/server.json` holds `{ pid, port, version, startedAt }` and has a schema. `server.lock` is created with an exclusive create, so two `serve` calls cannot start two servers. If the lock holds a dead pid, the next `serve` takes the lock.
+- **Files:** `~/.diff-digest/server.json` holds `{ pid, port, version, startedAt }` and has a schema. The lock directory `server.json.lock` (an atomic `mkdir`, with the owner pid inside) makes two `serve` calls start one server. A lock that is old and whose owner pid is dead is taken over. `~/.diff-digest/registry.json` maps each digest id to its working copy and its repo root.
+- **Health:** `GET /health` returns `{ version, pid }`. The CLI sends a signal to a pid only after `/health` answers with that pid.
 - **Registry:** the server knows a digest from its file in `store/`. There is no separate registry file.
 - **Idle exit:** the server exits after 4 hours with no requests, no open tabs, and no `wait` callers.
 - **Version:** if the CLI version is not the server version, `serve` restarts the server.
@@ -204,7 +205,7 @@ interface Backend {
 
 ## 6. Schemas and errors
 
-`src/lib/schemas.ts` defines, with zod 4: `Config`, `BackendConfig`, `Frontmatter`, `StoreFile`, `Comment`, `CommentTarget`, `ChangedFile`, `Hunk`, `DigestPayload`, `FilePayload`, `Action`, `LintIssue`, `Location`, `Pulled`, `Published`, `ServerInfo`, and the `Digest` model.
+`src/lib/schemas.ts` and `src/lib/schemas-api.ts` (server, payloads, actions, events) define, with zod 4: `Config`, `BackendConfig`, `Frontmatter`, `StoreFile`, `Comment`, `CommentTarget`, `ChangedFile`, `Hunk`, `DigestPayload`, `FilePayload`, `Action`, `LintIssue`, `Location`, `Pulled`, `Published`, `ServerInfo`, and the `Digest` model.
 
 - `CommentTarget` is a union: `{ kind: "digest", cid, section, text }` or `{ kind: "code", path, rev: "base" | "head", line, endLine?, text }`.
 - `Comment.status`: `open`, `resolved`, `note`, or `shared`.
@@ -231,9 +232,9 @@ type ErrorCode = "BAD_INPUT" | "NOT_FOUND" | "LINT_FAILED" | "COVERAGE_GAP" | "S
 | `files.diff`, `files.read` | UI code pane |
 | `files.setGenerated` | UI ⋯ menu; `mark` |
 | `comments.list`, `add`, `remove`, `resolve`, `note`, `markShared` | UI; `comments`, `resolve`, `note` |
-| `publish.digest`, `publish.review`, `publish.backends` | UI publish dialog; `publish`, `comments --publish` |
+| `publish.digest`, `publish.review`, `publish.backends` (added in plan 5) | UI publish dialog; `publish`, `comments --publish` |
 | `actions.send` | UI Apply and Review |
-| `actions.wait` (event iterator) | `wait` |
+| `actions.wait` (long poll: one action or a timeout) | `wait` |
 | `events` (event iterator) | UI live reload and listener status |
 
 - The CLI calls these procedures in-process with `createRouterClient`. So the CLI and the UI run the same handler with the same validation, and the CLI does not need the server for them. Only `wait` and `serve` need the server.

@@ -25,6 +25,11 @@
 | `digest.check` returns `{ issues, gaps }` (lint + anchor coverage), and the anchor checker for `lint` lives in `src/lib/payload.ts`. | `check` is used by both the CLI and `publish`, so it belongs behind the contract. |
 | The version is a constant in `src/lib/version.ts`; a test checks that it equals `package.json`. | No `resolveJsonModule` change. |
 | Until plan 6, `GET /d/:id/` returns a small static HTML page. | The React UI does not exist yet. |
+| The server lock is `server.json.lock` (the `withLock` directory), not a `server.lock` file. A lock is stale when it is old and its owner pid is dead. | One lock implementation for every shared file. |
+| The server, payload, action, and event schemas are in `src/lib/schemas-api.ts`, not `schemas.ts`. | `schemas.ts` would pass the 300-line limit. |
+| `src/lib/schemas-api.ts` and `src/lib/client.ts` are added to the purity override, with `contract.ts`. The UI imports all of them. | This makes the rule stricter, so it needs no approval (the plan 2 carry-forward said it did; that was wrong). |
+| `publish.digest`, `publish.review`, and `publish.backends` are not in this contract. Plan 5 adds them with the backends. | The backends do not exist yet. |
+| `GET /health` returns `{ version, pid }`. The lifecycle signals a pid only after `/health` confirms it. | A stale `server.json` can name a pid that the system gave to another process. |
 | `ensureServer(command)` takes the command that starts `server run`, so tests can start the server from source. Plan 4 passes the CLI's own command. | Testable lifecycle. |
 
 ## Tasks

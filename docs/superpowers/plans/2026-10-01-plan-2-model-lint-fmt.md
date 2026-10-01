@@ -1857,9 +1857,9 @@ git commit -m "minor: add anchor link render and unrender"
 | 6 | The UI renders from `parseBlocks` and takes block ids from `buildModel(...).blocks`, so the UI, the linter, and comments use the same `cid`. Add the `react-hooks` plugin (plan 1 carry-forward). |
 | 5 | `renderLinks` writes `[`a`](<url>)` when the URL has a space, a parenthesis, or `<` `>`. The `AnchorLinker` can return a plain path such as `vscode://file//Users/me/My Repo/x.ts:3`. |
 | 6 | The UI must NOT render from `parseBlocks`: `Block` and `Inline` flatten strong, em, and del, and drop images, `br`, and task boxes. The UI renders from `marked` tokens itself and maps each rendered block to its `cid` by file line, from `buildModel(...).blocks`. |
-| 6 | Two identical bullets in one section have the same `cid`. Comment targets must also store the line, and the UI must use the line to choose between equal `cid`s. |
+| 6 | Two identical bullets in one section have the same `cid`. Digest comment targets have an optional `line` (plan 3); the UI uses it to choose between equal `cid`s. One comment change can give two `comments` events (the procedure and the poller); the UI must not fetch twice for them. Working-tree file views follow symlinks; show a symlink as a symlink. |
 | 6 | Block ids for blockquotes and for list items with nested lists changed in the plan 2 final fix wave (nested items now have their own ids). No stored comments use the old ids yet. |
-| any | `md.ts` (260 lines) and `model.ts` (294) are near the 300-line limit. A new pure file must be added to the purity override in `.oxlintrc.json`; the user must approve that config change. |
+| any | `md.ts` (260 lines) and `model.ts` (294) are near the 300-line limit. A new pure file must be added to the purity override in `.oxlintrc.json`. That makes the rule stricter, so it needs no approval (corrected in plan 3). |
 | any | Mermaid `o`/`x` arrow ends need a space on their outer side (`a --o b`), or the parser reads the letter as part of the node id. |
 
 The code in Tasks 1–5 above is the code before the final review's fix wave (nested blocks, CRLF frontmatter, renumber, orderSections, questionsToNotes, render URLs, diagram parser cases, node-numbers notes, no-intent in code). Git history has the final code.
