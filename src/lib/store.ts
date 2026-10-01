@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { DigestError } from "./errors";
@@ -11,7 +11,12 @@ export function writeAtomic(path: string, data: string): void {
     mkdirSync(dirname(path), { recursive: true });
     const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
     writeFileSync(temp, data);
-    renameSync(temp, path);
+    try {
+        renameSync(temp, path);
+    } catch (error) {
+        rmSync(temp, { force: true });
+        throw error;
+    }
 }
 
 export function readJson(path: string): unknown {
