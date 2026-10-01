@@ -21,6 +21,26 @@ describe("parseDiagram", () => {
         ]);
         expect(d.hasChangedClassDef).toBe(false);
     });
+
+    test("edge labels, class lists, and comments do not make nodes", () => {
+        const source = [
+            "flowchart LR",
+            "  %% a comment",
+            "  a -- some label --> b",
+            "  b -->|piped| c",
+            "  c == thick text ==> d",
+            "  d -. dotted .-> e",
+            "  class a,e changed",
+        ].join("\n");
+        const d = parseDiagram(source, 1);
+        expect(d.nodes.map(n => [n.id, n.changed])).toEqual([
+            ["a", true],
+            ["b", false],
+            ["c", false],
+            ["d", false],
+            ["e", true],
+        ]);
+    });
 });
 
 describe("buildModel", () => {

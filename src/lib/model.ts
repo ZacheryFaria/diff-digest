@@ -66,11 +66,12 @@ export interface DigestModel {
     readonly all: readonly Block[];
 }
 
-const KEYWORD = /^(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction|%%)\b/u;
+const KEYWORD = /^(?:(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction)\b|%%)/u;
 const NODE =
     /([A-Za-z_][\w-]*)\s*(\[\[|\[\(|\(\(|\(\[|\[\/|\[\\|\[|\(|\{\{|\{|>)\s*(.*?)\s*(\]\]|\)\]|\)\)|\]\)|\/\]|\\\]|\]|\)|\}\}|\})(?::::([\w-]+))?/gu;
 const BARE = /^([A-Za-z_][\w-]*)(?::::([\w-]+))?/u;
-const ARROW = /\s*(?:<?[-=.]{2,}>?|--[^-|]+-->|-\.[^.]*\.->)\s*(?:\|[^|]*\|\s*)?/u;
+// Edges with a text label (`-- text -->`, `== text ==>`, `-. text .->`) come first, so the label is not read as a node.
+const ARROW = /\s*(?:--[^-|>]+?-->|==[^=|>]+?==>|-\.[^.|>]+?\.->|<?[-=.]{2,}>?)\s*(?:\|[^|]*\|\s*)?/u;
 const CLASS_LINE = /^class\s+([\w,\s-]+?)\s+([\w-]+)\s*;?$/u;
 
 interface NodeDraft {
