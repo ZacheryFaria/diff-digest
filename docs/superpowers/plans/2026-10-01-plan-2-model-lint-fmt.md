@@ -887,6 +887,22 @@ describe("lintDigest", () => {
         ]);
     });
 
+    test("anchor-resolves: an anchor in a table header is checked too", () => {
+        const body = `${GOOD_BODY}\n| \`bad.ts:1\` | b |\n|---|---|\n| 1 | 2 |\n`;
+        const ctx: LintContext = { checkAnchor: a => (a.path === "bad.ts" ? "No such file" : null) };
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 37]]);
+    });
+
+    test("node-numbers: each skipped number is reported", () => {
+        const body = GOOD_BODY.replace("② List view", "⑤ List view")
+            .replace("2. ②", "2. ⑤")
+            .replace("- ② The badge", "- ⑤ The badge");
+        const messages = lintDigest(`${FRONTMATTER}${body}`, OK)
+            .filter(i => i.rule === "node-numbers")
+            .map(i => i.message);
+        expect(messages).toEqual(["The node numbers skip ②.", "The node numbers skip ③.", "The node numbers skip ④."]);
+    });
+
     test("node-numbers: a skipped number, a duplicate, and an unknown Changes number", () => {
         expect(rules(GOOD_BODY.replace("② List view", "③ List view").replace("2. ②", "2. ③"))).toContain(
             "node-numbers",
@@ -1056,7 +1072,7 @@ export const nodeNumbers: LintRule = {
                 out.push(issue(nodeNumbers, node.line, `${circled(node.number)} is on more than one node.`));
             numbers.add(node.number);
         }
-        for (let n = 1; n <= numbers.size; n += 1) {
+        for (let n = 1; n <= Math.max(0, ...numbers); n += 1) {
             if (!numbers.has(n)) {
                 out.push(
                     issue(
@@ -1224,10 +1240,13 @@ export const anchorResolves: LintRule = {
     description: "Each anchor resolves to a file and a line range that exists.",
     check: ({ model, ctx }) => {
         const out: LintIssue[] = [];
-        for (const block of model.blocks) {
-            for (const a of anchors(block.text)) {
-                const problem = ctx.checkAnchor(a);
-                if (problem !== null) out.push(issue(anchorResolves, block.line, problem));
+        for (const { line, inline } of inlineLines(model.all)) {
+            for (const span of inline) {
+                if (span.kind !== "code") continue;
+                for (const a of anchors(`\`${span.text}\``)) {
+                    const problem = ctx.checkAnchor(a);
+                    if (problem !== null) out.push(issue(anchorResolves, line, problem));
+                }
             }
         }
         return out;
@@ -1375,12 +1394,12 @@ export function formatRulesMarkdown(): string {
 - [ ] **Step 5: Run the test to make sure that it passes**
 
 Run: `bun test test/lib/lint.test.ts`
-Expected: 11 pass, 0 fail.
+Expected: 13 pass, 0 fail.
 
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 65 tests.
+Expected: all steps pass. 67 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1684,7 +1703,7 @@ Expected: 8 pass, 0 fail.
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 73 tests.
+Expected: all steps pass. 75 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -1796,7 +1815,7 @@ Expected: 4 pass, 0 fail.
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 77 tests.
+Expected: all steps pass. 79 tests.
 
 - [ ] **Step 6: Commit**
 
