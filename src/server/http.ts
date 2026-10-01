@@ -3,6 +3,7 @@ import { statSync } from "node:fs";
 import { RPCHandler } from "@orpc/server/fetch";
 import { listDigests, registryPath } from "../lib/registry";
 import { commentsPath } from "../lib/store";
+import { VERSION } from "../lib/version";
 import { createServerContext } from "./context";
 import { router } from "./router";
 
@@ -80,6 +81,7 @@ export function startServer(options: ServerOptions): RunningServer {
                 const { matched, response } = await handler.handle(request, { prefix: "/rpc", context });
                 if (matched) return response;
             }
+            if (url.pathname === "/health") return Response.json({ version: VERSION, pid: process.pid });
             if (/^\/d\/[0-9a-z]{8}\/$/u.test(url.pathname))
                 return new Response(PAGE, { headers: { "content-type": "text/html" } });
             return new Response("not found", { status: 404 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { withLock } from "../../src/lib/lock";
+import { withLock, withLockAsync } from "../../src/lib/lock";
 import { expectDigestError, tempDir } from "../helpers/repo";
 
 let dir: string | undefined;
@@ -42,5 +42,25 @@ describe("withLock", () => {
         const old = (Date.now() - 60_000) / 1000;
         utimesSync(`${file}.lock`, old, old);
         expect(withLock(file, () => "ok", { waitMs: 50 })).toBe("ok");
+    });
+
+    test("withLockAsync holds the lock until the promise settles", async () => {
+        dir = tempDir("dd-lock-");
+        const file = join(dir, "f.json");
+        const order: string[] = [];
+        await Promise.all([
+            withLockAsync(file, async () => {
+                await Bun.sleep(30);
+                order.push("first");
+            }),
+            (async () => {
+                await Bun.sleep(5);
+                await withLockAsync(file, () => {
+                    order.push("second");
+                    return Promise.resolve();
+                });
+            })(),
+        ]);
+        expect(order).toEqual(["first", "second"]);
     });
 });

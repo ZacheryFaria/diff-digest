@@ -56,3 +56,31 @@ export function withLock<T>(file: string, run: () => T, options: LockOptions = {
         rmSync(dir, { recursive: true, force: true });
     }
 }
+
+async function acquireAsync(dir: string, deadline: number, staleMs: number, file: string): Promise<void> {
+    if (tryAcquire(dir)) return;
+    if (isStale(dir, staleMs)) {
+        rmSync(dir, { recursive: true, force: true });
+        await acquireAsync(dir, deadline, staleMs, file);
+        return;
+    }
+    if (Date.now() > deadline) {
+        throw new DigestError("LOCKED", `${file} is locked by another process.`, {
+            hint: `Remove ${dir} if no process uses it.`,
+        });
+    }
+    await Bun.sleep(LOCK_POLL_MS);
+    await acquireAsync(dir, deadline, staleMs, file);
+}
+
+/** `withLock` for async work: the lock is held until the promise settles, and waiting does not block. */
+export async function withLockAsync<T>(file: string, run: () => Promise<T>, options: LockOptions = {}): Promise<T> {
+    const dir = `${file}.lock`;
+    mkdirSync(dirname(dir), { recursive: true });
+    await acquireAsync(dir, Date.now() + (options.waitMs ?? LOCK_WAIT_MS), options.staleMs ?? LOCK_STALE_MS, file);
+    try {
+        return await run();
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
