@@ -21,7 +21,7 @@
         "verbatimModuleSyntax": true,
         "erasableSyntaxOnly": true,
         "isolatedModules": true,
-        "skipLibCheck": false
+        "skipLibCheck": true
     },
     "include": ["src", "scripts", "test"]
 }
