@@ -32,6 +32,22 @@ describe("lintDigest", () => {
         ]);
     });
 
+    test("anchor-resolves: an anchor in a table header is checked too", () => {
+        const body = `${GOOD_BODY}\n| \`bad.ts:1\` | b |\n|---|---|\n| 1 | 2 |\n`;
+        const ctx: LintContext = { checkAnchor: a => (a.path === "bad.ts" ? "No such file" : null) };
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 37]]);
+    });
+
+    test("node-numbers: each skipped number is reported", () => {
+        const body = GOOD_BODY.replace("② List view", "⑤ List view")
+            .replace("2. ②", "2. ⑤")
+            .replace("- ② The badge", "- ⑤ The badge");
+        const messages = lintDigest(`${FRONTMATTER}${body}`, OK)
+            .filter(i => i.rule === "node-numbers")
+            .map(i => i.message);
+        expect(messages).toEqual(["The node numbers skip ②.", "The node numbers skip ③.", "The node numbers skip ④."]);
+    });
+
     test("node-numbers: a skipped number, a duplicate, and an unknown Changes number", () => {
         expect(rules(GOOD_BODY.replace("② List view", "③ List view").replace("2. ②", "2. ③"))).toContain(
             "node-numbers",

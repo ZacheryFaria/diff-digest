@@ -20,10 +20,13 @@ export const anchorResolves: LintRule = {
     description: "Each anchor resolves to a file and a line range that exists.",
     check: ({ model, ctx }) => {
         const out: LintIssue[] = [];
-        for (const block of model.blocks) {
-            for (const a of anchors(block.text)) {
-                const problem = ctx.checkAnchor(a);
-                if (problem !== null) out.push(issue(anchorResolves, block.line, problem));
+        for (const { line, inline } of inlineLines(model.all)) {
+            for (const span of inline) {
+                if (span.kind !== "code") continue;
+                for (const a of anchors(`\`${span.text}\``)) {
+                    const problem = ctx.checkAnchor(a);
+                    if (problem !== null) out.push(issue(anchorResolves, line, problem));
+                }
             }
         }
         return out;

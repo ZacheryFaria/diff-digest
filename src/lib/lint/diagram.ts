@@ -19,7 +19,7 @@ export const nodeNumbers: LintRule = {
                 out.push(issue(nodeNumbers, node.line, `${circled(node.number)} is on more than one node.`));
             numbers.add(node.number);
         }
-        for (let n = 1; n <= numbers.size; n += 1) {
+        for (let n = 1; n <= Math.max(0, ...numbers); n += 1) {
             if (!numbers.has(n)) {
                 out.push(
                     issue(
