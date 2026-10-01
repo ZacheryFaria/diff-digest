@@ -80,7 +80,8 @@
                 "src/lib/model.ts",
                 "src/lib/render.ts",
                 "src/lib/contract.ts",
-                "src/lib/schemas-api.ts"
+                "src/lib/schemas-api.ts",
+                "src/lib/client.ts"
             ],
             "rules": {
                 "no-restricted-imports": [
