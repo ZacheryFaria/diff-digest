@@ -18,7 +18,13 @@ export function parseDigest(md: string): ParsedDigest {
             hint: "Create it with `diff-digest init`.",
         });
     }
-    const result = FrontmatterSchema.safeParse(Bun.YAML.parse(raw));
+    let parsed: unknown;
+    try {
+        parsed = Bun.YAML.parse(raw);
+    } catch (error) {
+        throw new DigestError("BAD_INPUT", "The digest frontmatter is not valid YAML.", { cause: error });
+    }
+    const result = FrontmatterSchema.safeParse(parsed);
     if (!result.success) {
         throw new DigestError("BAD_INPUT", `The digest frontmatter is not valid:\n${z.prettifyError(result.error)}`);
     }

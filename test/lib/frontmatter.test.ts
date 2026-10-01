@@ -27,4 +27,8 @@ describe("frontmatter", () => {
         const md = serializeDigest(FM, "x").replace("pinned: false", "pinned: false\npr: x");
         expectDigestError(() => parseDigest(md), "BAD_INPUT");
     });
+
+    test("frontmatter with invalid YAML is BAD_INPUT", () => {
+        expectDigestError(() => parseDigest("---\nid: [unclosed\n---\n"), "BAD_INPUT");
+    });
 });
