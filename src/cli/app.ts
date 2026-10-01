@@ -2,6 +2,8 @@
 import { buildApplication, buildRouteMap, help, version } from "@stricli/core";
 import { VERSION } from "../lib/version";
 import { configCommand } from "./commands/config";
+import { fmtCommand } from "./commands/fmt";
+import { checkCommand, lintCommand } from "./commands/lint";
 import { formatCommand, promptCommand } from "./commands/format";
 import { schemaCommand } from "./commands/schema";
 import { hunksCommand } from "./commands/hunks";
@@ -14,6 +16,9 @@ export const routes = buildRouteMap({
         init: initCommand,
         path: pathCommand,
         hunks: hunksCommand,
+        lint: lintCommand,
+        check: checkCommand,
+        fmt: fmtCommand,
         format: formatCommand,
         prompt: promptCommand,
         config: configCommand,

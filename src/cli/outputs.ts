@@ -1,6 +1,7 @@
 // Every command's output schema, by command name. `diff-digest schema <name>` prints one as JSON Schema.
 import { z } from "zod";
-import { BackendConfigSchema, ChangedFileSchema, ShaSchema } from "../lib/schemas";
+import { BackendConfigSchema, ChangedFileSchema, LintIssueSchema, ShaSchema } from "../lib/schemas";
+import { CheckResultSchema } from "../lib/schemas-api";
 import { TargetSchema } from "./target";
 
 export const TextOutputSchema = z.string();
@@ -45,6 +46,13 @@ export const HunksOutputSchema = z
     .readonly();
 export type HunksOutput = z.infer<typeof HunksOutputSchema>;
 
+export const LintOutputSchema = z.array(LintIssueSchema).readonly();
+export type LintOutput = z.infer<typeof LintOutputSchema>;
+
+export const FmtOutputSchema = z
+    .strictObject({ path: z.string(), changed: z.boolean(), questions: z.array(z.string()).readonly() })
+    .readonly();
+
 export const OUTPUTS = {
     format: TextOutputSchema,
     prompt: TextOutputSchema,
@@ -54,6 +62,9 @@ export const OUTPUTS = {
     path: PathOutputSchema,
     init: InitOutputSchema,
     hunks: HunksOutputSchema,
+    lint: LintOutputSchema,
+    check: CheckResultSchema,
+    fmt: FmtOutputSchema,
 } as const;
 
 export type CommandName = keyof typeof OUTPUTS;

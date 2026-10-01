@@ -15,3 +15,14 @@ export const refPositional = {
 export interface JsonFlags {
     readonly json: boolean;
 }
+
+export const idFlag = {
+    kind: "parsed",
+    parse: String,
+    brief: "The digest id (instead of a ref)",
+    optional: true,
+} as const;
+
+export interface RefFlags extends JsonFlags {
+    readonly id?: string;
+}
