@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { coverageGaps } from "../../src/lib/coverage";
 import { changedFiles } from "../../src/lib/diff";
 import { rev, type RepoContext } from "../../src/lib/repo";
@@ -39,5 +41,16 @@ describe("coverageGaps", () => {
                 changedFiles(ctx, () => false),
             ),
         ).toEqual([]);
+    });
+
+    test("a deleted file is a gap unless the digest names it", () => {
+        repo = makeRepo();
+        repo.write("src/old.ts", "x\n");
+        repo.commit("init");
+        rmSync(join(repo.root, "src/old.ts"));
+        const ctx: RepoContext = { root: repo.root, base: rev(repo.root, "HEAD"), head: "worktree" };
+        const files = changedFiles(ctx, () => false);
+        expect(coverageGaps(ctx, "# Title\n", files)).toEqual(["src/old.ts (deleted)"]);
+        expect(coverageGaps(ctx, "- removed `old.ts`\n", files)).toEqual([]);
     });
 });
