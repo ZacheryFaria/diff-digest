@@ -114,12 +114,16 @@ describe("pollChanges", () => {
                 errors.push(message);
             },
         });
-        await Bun.sleep(POLL_MS + 50);
+        const touchUntilPublished = async (): Promise<void> => {
+            const before = published.length;
+            await waitUntil(() => {
+                appendFileSync(mdPath, "\nMore.\n");
+                return published.length > before;
+            }, 3000);
+        };
+        await touchUntilPublished();
         writeFileSync(registryPath(home), "{ not json");
-        await waitUntil(() => {
-            appendFileSync(mdPath, "\nMore.\n");
-            return published.includes("abcd1234 digest");
-        }, 3000);
+        await touchUntilPublished();
         await Bun.sleep(POLL_MS * 3);
         expect(errors).toHaveLength(1);
     });
