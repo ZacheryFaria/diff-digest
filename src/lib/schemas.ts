@@ -153,3 +153,20 @@ export type Comment = z.infer<typeof CommentSchema>;
 
 export const CommentsFileSchema = z.array(CommentSchema).readonly();
 export type CommentsFile = z.infer<typeof CommentsFileSchema>;
+
+// ---- lint ----
+
+export const LintSeveritySchema = z.enum(["error", "warn"]);
+export type LintSeverity = z.infer<typeof LintSeveritySchema>;
+
+export const LintIssueSchema = z
+    .strictObject({
+        rule: z.string().min(1),
+        severity: LintSeveritySchema,
+        /** 1-based line in the digest file. */
+        line: z.int().positive(),
+        message: z.string().min(1),
+        hint: z.string().optional(),
+    })
+    .readonly();
+export type LintIssue = z.infer<typeof LintIssueSchema>;
