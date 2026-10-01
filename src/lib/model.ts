@@ -1,22 +1,8 @@
 // The typed Digest model: what the linter, fmt, and the UI read. Pure: no Node or Bun APIs.
-import { blockId } from "./digest";
+import { blockId, leadingNumber } from "./digest";
 import { endLine, parseBlocks, type Block, type Inline, type ListItem } from "./md";
 
-/** ① is 1 and ⑳ is 20. */
-const CIRCLED_ONE = 0x24_60;
-const CIRCLED_MAX = 20;
-
-export function circled(n: number): string {
-    return String.fromCodePoint(CIRCLED_ONE + n - 1);
-}
-
-/** The circled number at the start of the text (after spaces and quotes), or null. */
-export function leadingNumber(text: string): number | null {
-    const first = text.trimStart().replace(/^["']/u, "").codePointAt(0);
-    if (first === undefined) return null;
-    const n = first - CIRCLED_ONE + 1;
-    return n >= 1 && n <= CIRCLED_MAX ? n : null;
-}
+export { circled, leadingNumber } from "./digest";
 
 export interface DiagramNode {
     readonly id: string;
@@ -68,14 +54,20 @@ export interface DigestModel {
     readonly all: readonly Block[];
 }
 
-const KEYWORD = /^(?:(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction)\b|%%)/u;
+const KEYWORD =
+    /^(?:(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction|accTitle|accDescr)\b|%%)/u;
+const HEADER = /^(?:flowchart|graph)\b/u;
 const NODE =
     /([A-Za-z_][\w-]*)\s*(\[\[|\[\(|\(\(|\(\[|\[\/|\[\\|\[|\(|\{\{|\{|>)\s*(.*?)\s*(\]\]|\)\]|\)\)|\]\)|\/\]|\\\]|\]|\)|\}\}|\})(?::::([\w-]+))?/gu;
 const BARE = /^([A-Za-z_][\w-]*)(?::::([\w-]+))?/u;
 // Edges with a text label (`-- text -->`, `== text ==>`, `-. text .->`) come first, so the label is not read as a
 // node. The label may contain dashes, but its first character is not the edge character, so `a --- b --> c` is two edges.
-const ARROW = /\s*(?:--[^-|>][^|>]*?-->|==[^=|>][^|>]*?==>|-\.[^.|>][^|>]*?\.->|<?[-=.]{2,}>?)\s*(?:\|[^|]*\|\s*)?/u;
+// An edge can end with `>`, `o`, or `x` (`--o`, `x--x`); an `o` or `x` end has a space on its outer side. `~~~` is an edge.
+const ARROW =
+    /\s*(?:--(?![ox](?:\s|$))[^-|>][^|>]*?--[>ox]|==[^=|>][^|>]*?==[>ox]|-\.[^.|>][^|>]*?\.-[>ox]|(?:(?<=^|\s)[ox]|<)?[-=.]{2,}(?:[>ox](?=\s|$)|>)?|~{3,})\s*(?:\|[^|]*\|\s*)?/u;
 const CLASS_LINE = /^class\s+([\w,\s-]+?)\s+([\w-]+)\s*;?$/u;
+const QUOTED = /"[^"]*"/gu;
+const MASKED = /"(\d+)"/gu;
 
 interface NodeDraft {
     readonly id: string;
@@ -84,12 +76,32 @@ interface NodeDraft {
     readonly line: number;
 }
 
-function unquote(label: string): string {
-    return label.replace(/^"(.*)"$/u, "$1");
+/** Puts the quoted text back in a masked label, and removes the outer quotes. */
+function unmask(label: string, quotes: readonly string[]): string {
+    const text = label.replaceAll(MASKED, (match: string, n: string) => `"${quotes[Number(n)] ?? match}"`);
+    return text.replace(/^"(.*)"$/u, "$1");
 }
 
-/** The nodes that one statement defines or names. */
-function readStatement(statement: string, line: number): NodeDraft[] {
+/** Splits the text at each `separator` that is not in brackets. Quoted text is masked before. */
+function splitTop(text: string, separator: string): string[] {
+    const out: string[] = [];
+    let depth = 0;
+    let from = 0;
+    for (let i = 0; i < text.length; i += 1) {
+        const c = text.charAt(i);
+        if ("[({".includes(c)) depth += 1;
+        else if ("])}".includes(c)) depth = Math.max(0, depth - 1);
+        else if (c === separator && depth === 0) {
+            out.push(text.slice(from, i));
+            from = i + 1;
+        }
+    }
+    out.push(text.slice(from));
+    return out;
+}
+
+/** The nodes that one statement defines or names. Quoted text in `statement` is masked as `"n"`. */
+function readStatement(statement: string, line: number, quotes: readonly string[]): NodeDraft[] {
     const classLine = CLASS_LINE.exec(statement);
     if (classLine !== null) {
         const [, ids = "", cls] = classLine;
@@ -97,11 +109,11 @@ function readStatement(statement: string, line: number): NodeDraft[] {
         return ids.split(",").map(id => ({ id: id.trim(), label: "", changed: true, line }));
     }
     const out: NodeDraft[] = [];
-    for (const segment of statement.split(ARROW)) {
+    for (const segment of statement.split(ARROW).flatMap(s => splitTop(s, "&"))) {
         const defined = [...segment.matchAll(NODE)];
         for (const m of defined) {
             const [, id = "", , label = "", , cls] = m;
-            out.push({ id, label: unquote(label), changed: cls === "changed", line });
+            out.push({ id, label: unmask(label, quotes), changed: cls === "changed", line });
         }
         const bare = defined.length === 0 ? BARE.exec(segment.trim()) : null;
         if (bare !== null) {
@@ -112,25 +124,52 @@ function readStatement(statement: string, line: number): NodeDraft[] {
     return out;
 }
 
-export function parseDiagram(source: string, line: number): Diagram {
-    const nodes = new Map<string, NodeDraft>();
-    const add = (draft: NodeDraft): void => {
-        const old = nodes.get(draft.id);
-        nodes.set(
-            draft.id,
-            old === undefined
-                ? draft
-                : { ...old, label: old.label === "" ? draft.label : old.label, changed: old.changed || draft.changed },
-        );
+/** The nodes of one source line. A `;` or a `]` in quoted text does not end a statement or a label. */
+function readLine(text: string, line: number): NodeDraft[] {
+    const quotes: string[] = [];
+    const masked = text.replaceAll(QUOTED, q => `"${quotes.push(q.slice(1, -1)) - 1}"`);
+    return splitTop(masked, ";").flatMap(part => readStatement(part.trim(), line, quotes));
+}
+
+/** The index of the first line after the `flowchart` or `graph` line, or -1 for other diagram types. */
+function bodyStart(lines: readonly string[]): number {
+    let i = 0;
+    const skip = (): void => {
+        while (i < lines.length && ((lines[i] ?? "").trim() === "" || (lines[i] ?? "").trim().startsWith("%%"))) i += 1;
     };
+    skip();
+    if ((lines[i] ?? "").trim() === "---") {
+        const close = lines.findIndex((l, j) => j > i && l.trim() === "---");
+        i = close === -1 ? lines.length : close + 1;
+        skip();
+    }
+    return HEADER.test((lines[i] ?? "").trim()) ? i + 1 : -1;
+}
+
+function merge(old: NodeDraft | undefined, draft: NodeDraft): NodeDraft {
+    if (old === undefined) return draft;
+    return { ...old, label: old.label === "" ? draft.label : old.label, changed: old.changed || draft.changed };
+}
+
+/** Reads the nodes of a `flowchart` or `graph` diagram. Other diagram types have no nodes. */
+export function parseDiagram(source: string, line: number): Diagram {
+    const lines = source.split("\n");
+    const start = bodyStart(lines);
+    if (start === -1) return { line, source, nodes: [], hasChangedClassDef: false };
+    const nodes = new Map<string, NodeDraft>();
     let hasChangedClassDef = false;
-    for (const [i, text] of source.split("\n").entries()) {
+    let inAccDescr = false;
+    for (const [i, text] of lines.entries()) {
         const statement = text.trim();
+        if (i < start || inAccDescr) {
+            inAccDescr = inAccDescr && !statement.includes("}");
+            continue;
+        }
         if (/^classDef\s+changed\b/u.test(statement)) hasChangedClassDef = true;
+        if (/^accDescr\s*\{/u.test(statement)) inAccDescr = !statement.includes("}");
         if (statement === "" || KEYWORD.test(statement)) continue;
         // The first line of the code block is the fence, so the source starts one line later.
-        for (const part of statement.split(";"))
-            for (const draft of readStatement(part.trim(), line + 1 + i)) add(draft);
+        for (const draft of readLine(statement, line + 1 + i)) nodes.set(draft.id, merge(nodes.get(draft.id), draft));
     }
     const list: DiagramNode[] = [];
     for (const n of nodes.values()) list.push({ ...n, number: leadingNumber(n.label) });

@@ -54,6 +54,55 @@ describe("parseDiagram", () => {
     });
 });
 
+function ids(source: string): string[] {
+    return parseDiagram(source, 1).nodes.map(n => n.id);
+}
+
+describe("parseDiagram: more Mermaid syntax", () => {
+    test("o and x arrow ends and ~~~ are edges, not nodes", () => {
+        expect(ids("flowchart LR\n  a --o b\n  b --x c\n  c o--o d\n  d x--x e\n  e ~~~ f\n")).toEqual([
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+        ]);
+    });
+
+    test("a & b names both nodes", () => {
+        expect(ids("flowchart LR\n  a --> b & c\n  d & e --> f\n")).toEqual(["a", "b", "c", "d", "e", "f"]);
+    });
+
+    test("a ; or a ] inside a quoted label does not end the statement", () => {
+        const d = parseDiagram('flowchart LR\n  a["① x; y"]:::changed --> b["list[0] & more"]\n', 1);
+        expect(d.nodes.map(n => [n.id, n.label, n.changed])).toEqual([
+            ["a", "① x; y", true],
+            ["b", "list[0] & more", false],
+        ]);
+    });
+
+    test("accTitle, accDescr, and linkStyle lines are skipped", () => {
+        const source = [
+            "flowchart LR",
+            "  accTitle: The title",
+            "  accDescr: One line",
+            "  accDescr {",
+            "    more text",
+            "  }",
+            "  linkStyle 0 stroke:#f00",
+            "  a --> b",
+        ].join("\n");
+        expect(ids(source)).toEqual(["a", "b"]);
+    });
+
+    test("only flowchart and graph diagrams have nodes", () => {
+        expect(ids("sequenceDiagram\n  Alice->>Bob: hi\n")).toEqual([]);
+        expect(ids("%% comment\ngraph TD\n  a --> b\n")).toEqual(["a", "b"]);
+        expect(ids("---\ntitle: T\n---\nflowchart LR\n  a --> b\n")).toEqual(["a", "b"]);
+    });
+});
+
 describe("buildModel", () => {
     test("reads the title, sections, diagram, notes, and changes with file lines", () => {
         const m = buildModel(GOOD_BODY, 8);

@@ -44,3 +44,19 @@ export function blockId(section: string, text: string): string {
     }
     return (hash >>> 0).toString(36);
 }
+
+/** ① is 1 and ⑳ is 20. */
+const CIRCLED_ONE = 0x24_60;
+const CIRCLED_MAX = 20;
+
+export function circled(n: number): string {
+    return String.fromCodePoint(CIRCLED_ONE + n - 1);
+}
+
+/** The circled number at the start of the text (after spaces and quotes), or null. */
+export function leadingNumber(text: string): number | null {
+    const first = text.trimStart().replace(/^["']/u, "").codePointAt(0);
+    if (first === undefined) return null;
+    const n = first - CIRCLED_ONE + 1;
+    return n >= 1 && n <= CIRCLED_MAX ? n : null;
+}
