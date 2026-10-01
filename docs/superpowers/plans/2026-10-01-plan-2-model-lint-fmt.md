@@ -245,30 +245,32 @@ export type Block = BlockBase &
         | { readonly kind: "other"; readonly type: string }
     );
 
-const Raw = z.looseObject({ type: z.string(), raw: z.string() });
-const WithTokens = z.looseObject({ tokens: z.array(z.unknown()).optional() });
-const TextToken = z.looseObject({ type: z.enum(["text", "escape", "strong", "em", "del"]), text: z.string() });
-const CodespanToken = z.looseObject({ type: z.literal("codespan"), text: z.string() });
-const LinkToken = z.looseObject({ type: z.literal("link"), text: z.string(), href: z.string(), raw: z.string() });
-const HtmlToken = z.looseObject({ type: z.literal("html"), text: z.string() });
-const HeadingToken = z.looseObject({ type: z.literal("heading"), depth: z.int(), text: z.string() });
-const TextBlockToken = z.looseObject({ type: z.enum(["paragraph", "blockquote", "text"]), text: z.string() });
-const ListItemToken = z.looseObject({ type: z.literal("list_item"), raw: z.string(), text: z.string() }).readonly();
-const ListToken = z
-    .looseObject({ type: z.literal("list"), ordered: z.boolean(), items: z.array(ListItemToken).readonly() })
+const RawSchema = z.looseObject({ type: z.string(), raw: z.string() });
+const WithTokensSchema = z.looseObject({ tokens: z.array(z.unknown()).optional() });
+const TextTokenSchema = z.looseObject({ type: z.enum(["text", "escape", "strong", "em", "del"]), text: z.string() });
+const CodespanTokenSchema = z.looseObject({ type: z.literal("codespan"), text: z.string() });
+const LinkTokenSchema = z.looseObject({ type: z.literal("link"), text: z.string(), href: z.string(), raw: z.string() });
+const HtmlTokenSchema = z.looseObject({ type: z.literal("html"), text: z.string() });
+const HeadingTokenSchema = z.looseObject({ type: z.literal("heading"), depth: z.int(), text: z.string() });
+const TextBlockTokenSchema = z.looseObject({ type: z.enum(["paragraph", "blockquote", "text"]), text: z.string() });
+const ListItemTokenSchema = z
+    .looseObject({ type: z.literal("list_item"), raw: z.string(), text: z.string() })
     .readonly();
-const CellToken = z.looseObject({ text: z.string(), tokens: z.array(z.unknown()).readonly() }).readonly();
-const TableToken = z
+const ListTokenSchema = z
+    .looseObject({ type: z.literal("list"), ordered: z.boolean(), items: z.array(ListItemTokenSchema).readonly() })
+    .readonly();
+const CellTokenSchema = z.looseObject({ text: z.string(), tokens: z.array(z.unknown()).readonly() }).readonly();
+const TableTokenSchema = z
     .looseObject({
         type: z.literal("table"),
-        header: z.array(CellToken).readonly(),
-        rows: z.array(z.array(CellToken).readonly()).readonly(),
+        header: z.array(CellTokenSchema).readonly(),
+        rows: z.array(z.array(CellTokenSchema).readonly()).readonly(),
     })
     .readonly();
-const CodeToken = z.looseObject({ type: z.literal("code"), lang: z.string().optional(), text: z.string() });
+const CodeTokenSchema = z.looseObject({ type: z.literal("code"), lang: z.string().optional(), text: z.string() });
 
 function children(token: unknown): readonly unknown[] {
-    const parsed = WithTokens.safeParse(token);
+    const parsed = WithTokensSchema.safeParse(token);
     return parsed.success ? (parsed.data.tokens ?? []) : [];
 }
 
@@ -276,17 +278,17 @@ function children(token: unknown): readonly unknown[] {
 export function inlineOf(tokens: readonly unknown[]): Inline[] {
     const out: Inline[] = [];
     for (const token of tokens) {
-        const code = CodespanToken.safeParse(token);
+        const code = CodespanTokenSchema.safeParse(token);
         if (code.success) {
             out.push({ kind: "code", text: code.data.text });
             continue;
         }
-        const link = LinkToken.safeParse(token);
+        const link = LinkTokenSchema.safeParse(token);
         if (link.success) {
             out.push({ kind: "link", text: link.data.text, href: link.data.href, raw: link.data.raw });
             continue;
         }
-        const html = HtmlToken.safeParse(token);
+        const html = HtmlTokenSchema.safeParse(token);
         if (html.success) {
             out.push({ kind: "html", text: html.data.text });
             continue;
@@ -296,7 +298,7 @@ export function inlineOf(tokens: readonly unknown[]): Inline[] {
             out.push(...inlineOf(nested));
             continue;
         }
-        const text = TextToken.safeParse(token);
+        const text = TextTokenSchema.safeParse(token);
         if (text.success) out.push({ kind: "text", text: text.data.text });
     }
     return out;
@@ -306,7 +308,7 @@ function lineAt(source: string, offset: number): number {
     return source.slice(0, offset).split("\n").length;
 }
 
-function listItems(source: string, offset: number, token: z.infer<typeof ListToken>): ListItem[] {
+function listItems(source: string, offset: number, token: z.infer<typeof ListTokenSchema>): ListItem[] {
     const items: ListItem[] = [];
     let cursor = offset;
     for (const item of token.items) {
@@ -318,37 +320,37 @@ function listItems(source: string, offset: number, token: z.infer<typeof ListTok
     return items;
 }
 
-function toCell(cell: z.infer<typeof CellToken>): Cell {
+function toCell(cell: z.infer<typeof CellTokenSchema>): Cell {
     return { text: cell.text, inline: inlineOf(cell.tokens) };
 }
 
 function toBlock(source: string, offset: number, token: unknown): Block | null {
-    const base = Raw.safeParse(token);
+    const base = RawSchema.safeParse(token);
     if (!base.success || base.data.type === "space") return null;
     const head = { line: lineAt(source, offset), raw: base.data.raw };
-    const heading = HeadingToken.safeParse(token);
+    const heading = HeadingTokenSchema.safeParse(token);
     if (heading.success) {
         const { depth, text } = heading.data;
         return { ...head, kind: "heading", depth, text, inline: inlineOf(children(token)) };
     }
-    const textBlock = TextBlockToken.safeParse(token);
+    const textBlock = TextBlockTokenSchema.safeParse(token);
     if (textBlock.success) {
         const kind = textBlock.data.type === "blockquote" ? "blockquote" : "paragraph";
         const inline = inlineOf(children(token));
         return { ...head, kind, text: textBlock.data.text, inline };
     }
-    const list = ListToken.safeParse(token);
+    const list = ListTokenSchema.safeParse(token);
     if (list.success) {
         return { ...head, kind: "list", ordered: list.data.ordered, items: listItems(source, offset, list.data) };
     }
-    const table = TableToken.safeParse(token);
+    const table = TableTokenSchema.safeParse(token);
     if (table.success) {
         const header = table.data.header.map(c => toCell(c));
         return { ...head, kind: "table", header, rows: table.data.rows.map(r => r.map(c => toCell(c))) };
     }
-    const code = CodeToken.safeParse(token);
+    const code = CodeTokenSchema.safeParse(token);
     if (code.success) return { ...head, kind: "code", lang: code.data.lang ?? "", text: code.data.text };
-    const html = HtmlToken.safeParse(token);
+    const html = HtmlTokenSchema.safeParse(token);
     if (html.success) return { ...head, kind: "html", text: html.data.text };
     if (base.data.type === "def") return { ...head, kind: "def" };
     return { ...head, kind: "other", type: base.data.type };
@@ -362,7 +364,7 @@ export function parseBlocks(source: string): Block[] {
     for (const token of tokens) {
         const block = toBlock(source, offset, token);
         if (block !== null) blocks.push(block);
-        const raw = Raw.safeParse(token);
+        const raw = RawSchema.safeParse(token);
         offset += raw.success ? raw.data.raw.length : 0;
     }
     return blocks;
