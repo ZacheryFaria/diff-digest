@@ -87,6 +87,16 @@ describe("lintDigest", () => {
         expect(rules(GOOD_BODY.replace("- ② The badge", "- ⑤ The badge"))).toEqual(["node-numbers"]);
     });
 
+    test("node-numbers: a note whose number is not a node is an error on the note line", () => {
+        const body = GOOD_BODY.replace(
+            "2. ② The list shows a retry badge.\n",
+            "2. ② The list shows a retry badge.\n3. ③ More.\n",
+        );
+        expect(lintDigest(`${FRONTMATTER}${body}`, OK)).toEqual([
+            { rule: "node-numbers", severity: "error", line: 25, message: "③ is not a node in the diagram." },
+        ]);
+    });
+
     test("changed-node-marked: a number without :::changed, and :::changed without a number", () => {
         expect(rules(GOOD_BODY.replace('view["② List view"]:::changed', 'view["② List view"]'))).toEqual([
             "changed-node-marked",
@@ -96,8 +106,8 @@ describe("lintDigest", () => {
 
     test("diagram-notes: a numbered node with no note, and a note that is not a node", () => {
         expect(rules(GOOD_BODY.replace("2. ② The list shows a retry badge.\n", ""))).toEqual(["diagram-notes"]);
-        // ④ is not a node, and ② now has no note: two issues.
-        expect(rules(GOOD_BODY.replace("2. ② The list", "2. ④ The list"))).toEqual(["diagram-notes", "diagram-notes"]);
+        // ② now has no note (diagram-notes), and ④ is not a node (node-numbers).
+        expect(rules(GOOD_BODY.replace("2. ② The list", "2. ④ The list"))).toEqual(["diagram-notes", "node-numbers"]);
     });
 
     test("diagram-size: more than 11 nodes", () => {
@@ -116,6 +126,7 @@ describe("lintDigest", () => {
 
     test("no-intent, no-inline-html, no-wikilinks, link-style, table-max-columns", () => {
         expect(rules(`${GOOD_BODY}\nThis exists in order to help.\n`)).toEqual(["no-intent"]);
+        expect(rules(`${GOOD_BODY}\n\`\`\`text\nin order to help\n\`\`\`\n`)).toEqual([]);
         expect(rules(`${GOOD_BODY}\nA <b>bold</b> word.\n`)).toEqual(["no-inline-html"]);
         expect(rules(`${GOOD_BODY}\nSee [[Note]].\n`)).toEqual(["no-wikilinks"]);
         expect(rules(`${GOOD_BODY}\nSee [docs][d].\n\n[d]: https://x.dev\n`)).toEqual(["link-style", "link-style"]);

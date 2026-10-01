@@ -31,9 +31,9 @@ export const nodeNumbers: LintRule = {
                 );
             }
         }
-        for (const change of model.changes) {
-            if (change.number !== null && !numbers.has(change.number)) {
-                out.push(issue(nodeNumbers, change.line, `${circled(change.number)} is not a node in the diagram.`));
+        for (const item of [...model.notes, ...model.changes]) {
+            if (item.number !== null && !numbers.has(item.number)) {
+                out.push(issue(nodeNumbers, item.line, `${circled(item.number)} is not a node in the diagram.`));
             }
         }
         return out;
@@ -67,17 +67,15 @@ export const diagramNotes: LintRule = {
     check: ({ model }) => {
         const out: LintIssue[] = [];
         const notes = new Set(model.notes.map(n => n.number));
-        const nodes = new Set((model.diagram?.nodes ?? []).map(n => n.number));
         for (const node of model.diagram?.nodes ?? []) {
             if (node.number !== null && !notes.has(node.number)) {
                 out.push(issue(diagramNotes, node.line, `${circled(node.number)} has no note below the diagram.`));
             }
         }
+        // A note whose number is not a node is a node-numbers error.
         for (const note of model.notes) {
             if (note.number === null)
                 out.push(issue(diagramNotes, note.line, "This note does not start with a circled number."));
-            else if (!nodes.has(note.number))
-                out.push(issue(diagramNotes, note.line, `${circled(note.number)} is not a node in the diagram.`));
         }
         return out;
     },

@@ -40,13 +40,15 @@ export const noIntent: LintRule = {
     description: `No intent phrases: ${INTENT_PHRASES.map(p => `\`${p}\``).join(", ")}.`,
     check: ({ model }) => {
         const out: LintIssue[] = [];
-        for (const block of model.blocks) {
-            const lower = block.text.toLowerCase();
+        // Code blocks (Mermaid or other) have no inline content, so they are not read.
+        for (const { line, inline } of inlineLines(model.all)) {
+            const lower = inline
+                .map(i => i.text)
+                .join("")
+                .toLowerCase();
             for (const phrase of INTENT_PHRASES) {
                 if (lower.includes(phrase))
-                    out.push(
-                        issue(noIntent, block.line, `"${phrase}" guesses the intent. Describe what the code does.`),
-                    );
+                    out.push(issue(noIntent, line, `"${phrase}" guesses the intent. Describe what the code does.`));
             }
         }
         return out;
