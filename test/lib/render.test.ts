@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { parseBlocks } from "../../src/lib/md";
 import { renderLinks, unrenderLinks, type AnchorLinker } from "../../src/lib/render";
 import { GOOD_BODY } from "../fixtures/digest";
 
@@ -25,6 +26,35 @@ describe("render", () => {
     test("a code block in a blockquote does not change", () => {
         const body = "> text\n>\n> ```\n> `b.ts:2`\n> ```\n";
         expect(renderLinks(body, LINK)).toBe(body);
+    });
+
+    test("a URL with spaces, parentheses, or angle brackets round-trips and is one link", () => {
+        const linkers: AnchorLinker[] = [
+            a => `vscode://file//Users/me/My Repo/${a.path}:${a.start}`,
+            a => `https://x.dev/v/(v1)/${a.path}`,
+            a => `https://x.dev/<b>/${a.path}`,
+        ];
+        const body = "See `x.ts:3` now.\n";
+        for (const link of linkers) {
+            const rendered = renderLinks(body, link);
+            expect(unrenderLinks(rendered)).toBe(body);
+            expect(renderLinks(rendered, link)).toBe(rendered);
+            const [paragraph] = parseBlocks(rendered);
+            const links = paragraph?.kind === "paragraph" ? paragraph.inline.filter(i => i.kind === "link") : [];
+            expect(links.length).toBe(1);
+            expect(links[0]?.text).toBe("`x.ts:3`");
+        }
+        expect(renderLinks(body, linkers[0] ?? LINK)).toBe(
+            "See [`x.ts:3`](<vscode://file//Users/me/My Repo/x.ts:3>) now.\n",
+        );
+        expect(renderLinks(body, linkers[2] ?? LINK)).toBe("See [`x.ts:3`](<https://x.dev/%3Cb%3E/x.ts>) now.\n");
+    });
+
+    test("an anchor in the label of another link is not linked", () => {
+        const body = "- [see `a.ts:1` here](https://y.dev) and `b.ts:2`\n";
+        expect(renderLinks(body, LINK)).toBe(
+            "- [see `a.ts:1` here](https://y.dev) and [`b.ts:2`](https://x.dev/blob/sha/b.ts#L2-L2)\n",
+        );
     });
 
     test("the rendered body has no HTML", () => {
