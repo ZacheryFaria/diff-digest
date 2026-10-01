@@ -2,7 +2,8 @@
 import { findFile } from "./digest";
 import { newExists, newText, parseDiff, rawDiff } from "./diff";
 import { git, runGit, type RepoContext } from "./repo";
-import type { ChangedFile, DiffPayload, FilePayload, FileSide, Hunk, HunkSummary, LineMark } from "./schemas";
+import type { ChangedFile, Hunk } from "./schemas";
+import type { DiffPayload, FilePayload, FileSide, HunkSummary, LineMark } from "./schemas-api";
 
 /** The one tracked file that matches a path suffix at the head, or undefined. */
 export function resolveTracked(ctx: RepoContext, suffix: string): string | undefined {

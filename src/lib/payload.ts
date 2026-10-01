@@ -5,7 +5,8 @@ import { changedFiles, diffLineCount, isReviewable } from "./diff";
 import { parseDigest } from "./frontmatter";
 import { configPath } from "./paths";
 import { repoKeys, tryRev, type RepoContext } from "./repo";
-import type { ChangedFile, DigestPayload, Frontmatter, RegistryEntry } from "./schemas";
+import type { ChangedFile, Frontmatter } from "./schemas";
+import type { DigestPayload, RegistryEntry } from "./schemas-api";
 
 export interface OpenDigest {
     readonly entry: RegistryEntry;

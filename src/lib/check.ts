@@ -5,7 +5,7 @@ import { newExists, newText } from "./diff";
 import { resolveTracked } from "./files";
 import { lintDigest } from "./lint";
 import type { OpenDigest } from "./payload";
-import type { CheckResult } from "./schemas";
+import type { CheckResult } from "./schemas-api";
 
 /** The lint anchor check: the path must match a file, and the range must be inside it. */
 export function anchorChecker(open: OpenDigest): (anchor: Anchor) => string | null {

@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { serializeDigest } from "../../src/lib/frontmatter";
 import { rev } from "../../src/lib/repo";
-import type { Frontmatter, RegistryEntry } from "../../src/lib/schemas";
+import type { Frontmatter } from "../../src/lib/schemas";
+import type { RegistryEntry } from "../../src/lib/schemas-api";
 import type { TestRepo } from "./repo";
 
 /** Writes a working copy for the repo's current HEAD (as base) and returns its registry entry. */

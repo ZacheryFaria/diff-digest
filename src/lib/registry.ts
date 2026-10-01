@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DigestError } from "./errors";
 import { withLock } from "./lock";
 import { homeDir } from "./paths";
-import { RegistryFileSchema, type RegistryEntry, type RegistryFile } from "./schemas";
+import { RegistryFileSchema, type RegistryEntry, type RegistryFile } from "./schemas-api";
 import { readJson, writeAtomic } from "./store";
 
 export function registryPath(home: string = homeDir()): string {
