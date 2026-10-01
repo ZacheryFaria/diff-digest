@@ -1594,6 +1594,8 @@ git commit -m "minor: add changed-file, class, and hunk analysis"
 
 ```ts
 import { afterEach, describe, expect, test } from "bun:test";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { coverageGaps } from "../../src/lib/coverage";
 import { changedFiles } from "../../src/lib/diff";
 import { rev, type RepoContext } from "../../src/lib/repo";
@@ -1635,6 +1637,17 @@ describe("coverageGaps", () => {
             ),
         ).toEqual([]);
     });
+
+    test("a deleted file is a gap unless the digest names it", () => {
+        repo = makeRepo();
+        repo.write("src/old.ts", "x\n");
+        repo.commit("init");
+        rmSync(join(repo.root, "src/old.ts"));
+        const ctx: RepoContext = { root: repo.root, base: rev(repo.root, "HEAD"), head: "worktree" };
+        const files = changedFiles(ctx, () => false);
+        expect(coverageGaps(ctx, "# Title\n", files)).toEqual(["src/old.ts (deleted)"]);
+        expect(coverageGaps(ctx, "- removed `old.ts`\n", files)).toEqual([]);
+    });
 });
 ```
 
@@ -1675,7 +1688,7 @@ export function coverageGaps(ctx: RepoContext, md: string, files: readonly Chang
 - [ ] **Step 4: Run the test to make sure that it passes**
 
 Run: `bun test test/lib/coverage.test.ts`
-Expected: 2 pass, 0 fail.
+Expected: 3 pass, 0 fail.
 
 - [ ] **Step 5: Run the full check**
 
@@ -1998,7 +2011,7 @@ Expected: 11 pass, 0 fail.
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. The full suite has 35 tests.
+Expected: all steps pass. The full suite has 36 tests.
 
 - [ ] **Step 7: Commit**
 
