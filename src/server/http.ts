@@ -2,6 +2,7 @@
 import { statSync } from "node:fs";
 import { RPCHandler } from "@orpc/server/fetch";
 import { listDigests, registryPath } from "../lib/registry";
+import type { RegistryEntry } from "../lib/schemas-api";
 import { commentsPath } from "../lib/store";
 import { VERSION } from "../lib/version";
 import { createServerContext } from "./context";
@@ -41,21 +42,51 @@ function mtime(path: string): number {
     }
 }
 
-/** Publishes a `digest` or `comments` event when a registered file changes. Returns a stop function. */
-export function pollChanges(home: string, publish: (id: string, type: "digest" | "comments") => void): () => void {
-    const seen = new Map<string, number>();
+export interface PollOptions {
+    /** True when the digest has an open event stream now. Only those digests are polled. */
+    readonly has: (id: string) => boolean;
+    readonly publish: (id: string, type: "digest" | "comments") => void;
+    /** Gets each new error message once. The default writes one line to stderr. */
+    readonly onError?: (message: string) => void;
+}
+
+function logError(message: string): void {
+    process.stderr.write(`diff-digest server: ${message.replaceAll("\n", " ")}\n`);
+}
+
+/**
+ * Publishes a `digest` or `comments` event when a file of a watched digest changes. An error in a
+ * tick does not stop the polling: the last good digest list stays in use. Returns a stop function.
+ */
+export function pollChanges(home: string, options: PollOptions): () => void {
+    let seen = new Map<string, number>();
+    let entries: readonly RegistryEntry[] = [];
+    let lastError: string | null = null;
+    const tick = (): void => {
+        entries = listDigests(registryPath(home));
+        lastError = null;
+    };
     const timer = setInterval(() => {
-        for (const entry of listDigests(registryPath(home))) {
+        try {
+            tick();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message !== lastError) (options.onError ?? logError)(message);
+            lastError = message;
+        }
+        const next = new Map<string, number>();
+        for (const entry of entries.filter(e => options.has(e.id))) {
             for (const [file, type] of [
                 [entry.mdPath, "digest"],
                 [commentsPath(entry.mdPath), "comments"],
             ] as const) {
                 const now = mtime(file);
                 const before = seen.get(file);
-                seen.set(file, now);
-                if (before !== undefined && before !== now) publish(entry.id, type);
+                next.set(file, now);
+                if (before !== undefined && before !== now) options.publish(entry.id, type);
             }
         }
+        seen = next;
     }, POLL_MS);
     return () => {
         clearInterval(timer);
@@ -87,8 +118,11 @@ export function startServer(options: ServerOptions): RunningServer {
             return new Response("not found", { status: 404 });
         },
     });
-    const stopPolling = pollChanges(options.home, (id, type) => {
-        context.bus.publish(id, { type });
+    const stopPolling = pollChanges(options.home, {
+        has: id => context.bus.has(id),
+        publish: (id, type) => {
+            context.bus.publish(id, { type });
+        },
     });
     const idle = setInterval(
         () => {
