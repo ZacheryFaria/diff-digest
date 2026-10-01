@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { z } from "zod";
 import { DigestError } from "./errors";
+import { withLock } from "./lock";
 import { configPath } from "./paths";
 import { BackendConfigSchema, ConfigFileSchema, type BackendConfig, type ConfigFile, type RepoConfig } from "./schemas";
 import { readJson, writeAtomic } from "./store";
@@ -78,14 +79,16 @@ export function setGenerated(
     repoKeys: readonly [string, ...string[]],
     file: string = configPath(),
 ): void {
-    const current = readConfigFile(file);
-    const key = repoKeys.find(k => current.repos?.[k] !== undefined) ?? repoKeys[0];
-    const repo = current.repos?.[key] ?? {};
-    const pattern = exactPattern(path);
-    const rest = (repo.generated ?? []).filter(r => r !== pattern);
-    const next = ConfigFileSchema.parse({
-        ...current,
-        repos: { ...current.repos, [key]: { ...repo, generated: on ? [...rest, pattern] : rest } },
+    withLock(file, () => {
+        const current = readConfigFile(file);
+        const key = repoKeys.find(k => current.repos?.[k] !== undefined) ?? repoKeys[0];
+        const repo = current.repos?.[key] ?? {};
+        const pattern = exactPattern(path);
+        const rest = (repo.generated ?? []).filter(r => r !== pattern);
+        const next = ConfigFileSchema.parse({
+            ...current,
+            repos: { ...current.repos, [key]: { ...repo, generated: on ? [...rest, pattern] : rest } },
+        });
+        writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
     });
-    writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
 }

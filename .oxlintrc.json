@@ -49,7 +49,8 @@
                         "name": "Sha",
                         "path": "src/lib/schemas.ts"
                     }
-                ]
+                ],
+                "ignoreInferredTypes": true
             }
         ]
     },
@@ -77,7 +78,8 @@
                 "src/lib/schemas.ts",
                 "src/lib/md.ts",
                 "src/lib/model.ts",
-                "src/lib/render.ts"
+                "src/lib/render.ts",
+                "src/lib/contract.ts"
             ],
             "rules": {
                 "no-restricted-imports": [

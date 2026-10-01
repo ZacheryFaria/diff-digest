@@ -16,10 +16,14 @@
         "bun": ">=1.4.2"
     },
     "dependencies": {
+        "@orpc/client": "1.15.4",
+        "@orpc/contract": "1.15.4",
+        "@orpc/server": "1.15.4",
         "marked": "18.0.14",
         "zod": "4.6.5"
     },
     "devDependencies": {
+        "@opentelemetry/api": "1.9.1",
         "@types/bun": "1.4.2",
         "oxlint": "1.86.0",
         "oxlint-tsgolint": "7.0.2003",

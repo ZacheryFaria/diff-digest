@@ -9,6 +9,7 @@ export const ERROR_CODES = [
     "BAD_CONFIG",
     "SERVER_DOWN",
     "GIT_FAILED",
+    "LOCKED",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -25,6 +26,7 @@ export const EXIT_CODES: Readonly<Record<ErrorCode, number>> = {
     BAD_CONFIG: 10,
     SERVER_DOWN: 11,
     GIT_FAILED: 12,
+    LOCKED: 13,
 };
 
 export interface DigestErrorOptions {

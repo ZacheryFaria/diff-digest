@@ -170,3 +170,31 @@ export const LintIssueSchema = z
     })
     .readonly();
 export type LintIssue = z.infer<typeof LintIssueSchema>;
+
+// ---- server ----
+
+export const RegistryEntrySchema = z
+    .strictObject({
+        id: z.string().regex(/^[0-9a-z]{8}$/u),
+        mdPath: z.string().min(1),
+        /** The repo root that the digest's base and head belong to. */
+        root: z.string().min(1),
+        updatedAt: z.iso.datetime(),
+    })
+    .readonly();
+export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
+
+export const RegistryFileSchema = z
+    .strictObject({ digests: z.record(z.string(), RegistryEntrySchema).readonly() })
+    .readonly();
+export type RegistryFile = z.infer<typeof RegistryFileSchema>;
+
+export const ServerInfoSchema = z
+    .strictObject({
+        pid: z.int().positive(),
+        port: z.int().positive(),
+        version: z.string().min(1),
+        startedAt: z.iso.datetime(),
+    })
+    .readonly();
+export type ServerInfo = z.infer<typeof ServerInfoSchema>;
