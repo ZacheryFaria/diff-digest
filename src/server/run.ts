@@ -3,11 +3,12 @@ import { rmSync } from "node:fs";
 import { writeAtomic } from "../lib/store";
 import { VERSION } from "../lib/version";
 import { startServer } from "./http";
-import { serverInfoPath } from "./lifecycle";
+import { readServerInfo, serverInfoPath } from "./lifecycle";
 
 export function runServer(home: string, port = 0): void {
     const stop = (): void => {
-        rmSync(serverInfoPath(home), { force: true });
+        // A newer server can own server.json now. Remove it only when it still names this process.
+        if (readServerInfo(home)?.pid === process.pid) rmSync(serverInfoPath(home), { force: true });
         void server.stop().finally(() => process.exit(0));
     };
     const server = startServer({ port, home, onIdle: stop });
