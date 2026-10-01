@@ -73,7 +73,10 @@ src/
     diff.ts           changed files (with untracked files), classes, hunks, import and move filter
     config.ts         read, validate, setGenerated
     store.ts          working copies and comments; atomic writes
-    digest.ts         frontmatter, block ids (cid), anchors, coverage
+    paths.ts          ~/.diff-digest paths
+    digest.ts         pure helpers for the UI too: block ids (cid), anchors, path match
+    frontmatter.ts    parse and write the frontmatter (YAML)
+    coverage.ts       hunks that no anchor covers
     model.ts          Markdown → typed Digest model (marked lexer)
     lint.ts           rules on the model
     fmt.ts            safe auto-fixes

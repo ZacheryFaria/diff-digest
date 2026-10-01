@@ -1,0 +1,81 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "ignorePatterns": ["scripts/install.mjs"],
+    "plugins": ["typescript", "unicorn", "import", "promise", "react"],
+    "categories": {
+        "correctness": "error",
+        "suspicious": "error",
+        "perf": "error",
+        "pedantic": "error"
+    },
+    "rules": {
+        "typescript/ban-ts-comment": [
+            "error",
+            {
+                "ts-expect-error": true,
+                "ts-ignore": true,
+                "ts-nocheck": true,
+                "ts-check": false
+            }
+        ],
+        "typescript/consistent-type-assertions": [
+            "error",
+            {
+                "assertionStyle": "never"
+            }
+        ],
+        "typescript/consistent-type-imports": "error",
+        "typescript/no-explicit-any": "error",
+        "typescript/no-non-null-assertion": "error",
+        "typescript/no-unsafe-assignment": "error",
+        "typescript/no-unsafe-call": "error",
+        "typescript/no-unsafe-member-access": "error",
+        "typescript/no-unsafe-return": "error",
+        "typescript/no-unsafe-argument": "error",
+        "typescript/no-floating-promises": "error",
+        "typescript/no-misused-promises": "error",
+        "typescript/await-thenable": "error",
+        "typescript/require-await": "error",
+        "typescript/switch-exhaustiveness-check": "error",
+        "typescript/strict-boolean-expressions": "error",
+        "typescript/no-unnecessary-condition": "error",
+        "typescript/prefer-nullish-coalescing": "error",
+        "typescript/prefer-readonly-parameter-types": [
+            "error",
+            {
+                "allow": [
+                    {
+                        "from": "file",
+                        "name": "Sha",
+                        "path": "src/lib/schemas.ts"
+                    }
+                ]
+            }
+        ]
+    },
+    "overrides": [
+        {
+            "files": ["src/lib/**"],
+            "rules": {
+                "no-console": "error",
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "patterns": [
+                            {
+                                "group": ["../cli/*", "../server/*", "../app/*", "react", "react-dom"],
+                                "message": "src/lib must not import other src folders or React."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": ["test/**"],
+            "rules": {
+                "max-lines-per-function": "off"
+            }
+        }
+    ]
+}

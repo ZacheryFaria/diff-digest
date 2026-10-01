@@ -1,13 +1,28 @@
 {
-  "name": "diff-digest",
-  "version": "0.1.0",
-  "description": "Compress a git diff into a short, reviewable change spec with a local review UI.",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "setup": "bun scripts/install.mjs"
-  },
-  "engines": {
-    "bun": ">=1.1"
-  }
+    "name": "diff-digest",
+    "version": "0.2.0",
+    "description": "Compress a git diff into a short, reviewable change spec with a local review UI.",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "setup": "bun scripts/install.mjs",
+        "typecheck": "tsc -p .",
+        "lint": "oxlint --type-aware src test scripts && bun scripts/check-suppressions.ts && prettier --check .",
+        "format": "prettier --write .",
+        "test": "bun test",
+        "verify": "bun run typecheck && bun run lint && bun run test"
+    },
+    "engines": {
+        "bun": ">=1.4.2"
+    },
+    "dependencies": {
+        "zod": "4.6.5"
+    },
+    "devDependencies": {
+        "@types/bun": "1.4.2",
+        "oxlint": "1.86.0",
+        "oxlint-tsgolint": "7.0.2003",
+        "prettier": "3.9.9",
+        "typescript": "7.0.2"
+    }
 }
