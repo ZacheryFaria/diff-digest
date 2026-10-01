@@ -17,6 +17,11 @@ Priorities, in this order when they conflict:
 2. **Fast.** Fast build, fast start, fast page load.
 3. **Strongly typed.** The strictest TypeScript settings, type-aware lint rules, and no suppressions without approval (section 11).
 
+Product rules:
+
+1. **Agents write the Markdown, and the tool lints it.** All valid Markdown is allowed. Lint rules are for best practices and a good reading experience. No rule rejects a valid Markdown construct.
+2. **A digest is viewable in any Markdown viewer:** glow, GitHub, GitLab, Obsidian, or a home-built viewer. The baseline is CommonMark + GFM (tables, strikethrough, autolinks, task lists). Mermaid is an extra: a digest must make sense when a viewer shows the diagram as source.
+
 Non-goals: migration of old digests or old comment files, an MCP server, a browser test suite, CI.
 
 ## 2. Stack
@@ -155,7 +160,10 @@ interface Backend {
 
 - Each backend is one file that exports `{ type, configSchema, create(config, deps) }`. `deps` holds `exec` (for `gh`), `fs`, and `now`, so tests can replace them.
 - `Location`, `Published.ref`, and `BackendConfig` are discriminated unions on `type`.
-- `render` converts anchors to links and adds a hidden meta marker. `unrender` does the opposite. A round trip through any backend gives the same body.
+- `render` converts anchors to standard `[text](url)` links and wraps the body in the backend's envelope. `unrender` does the opposite. A round trip through any backend gives the same body.
+- The body is the same for all backends, and it must be portable (product rule 2). Only the envelope changes for each backend:
+  - `github`: an HTML comment marker `<!-- diff-digest: {meta} -->`. GitHub hides it, and PR comments do not support frontmatter. A plain Markdown line at the end replaces the old `<sub>` footer.
+  - `local`: YAML frontmatter with the meta and the `frontmatter` option. Obsidian, GitLab, and glow support frontmatter.
 
 | | `github` | `local` |
 |---|---|---|
@@ -247,29 +255,45 @@ Stricli application. Each command is one file.
 The agent writes Markdown. The tool parses it, checks it, and fixes it.
 
 - `model.ts` parses the body with the `marked` lexer into a typed `Digest`: title, generated list, architecture (Mermaid source, numbered nodes, notes list), changes, tables, tests, test gaps, and block ids.
-- `lint.ts`: each rule is `{ id, description, check(model, ctx) → LintIssue[] }`. A `LintIssue` is `{ rule, line, message, hint }`. The rules include:
-  - the frontmatter matches the schema
-  - the sections are known and in order
-  - there is no Questions section
-  - every changed node has `:::changed` and a circled number
-  - the numbers are in sequence, and they are the same in the diagram, the notes list, and the Changes bullets
-  - the diagram has fewer than 12 nodes
-  - each anchor resolves to a file and a line range that exists
-  - there are no intent phrases: `in order to`, `the author`, `intended to`, `we want`, `the goal`, `to make it easier`. The list is a constant in `lint.ts`, so it is easy to change.
-- `fmt.ts` makes only the fixes that cannot change the meaning:
+- `lint.ts`: each rule is `{ id, severity, description, check(model, ctx) → LintIssue[] }`. A `LintIssue` is `{ rule, severity, line, message, hint }`.
+- Severity follows product rule 1:
+  - `error` is only for facts that are wrong. The digest does not agree with the code, or the tool cannot read the digest.
+  - `warn` is for best practices and portability. A warning never blocks a command.
+- No rule rejects valid Markdown. An unknown section, HTML, or any other valid construct gets at most a warning.
+
+| Rule | Severity | Check |
+|---|---|---|
+| `frontmatter` | error | The frontmatter matches the schema. |
+| `anchor-resolves` | error | Each anchor resolves to a file and a line range that exists. |
+| `node-numbers` | error | The circled numbers are in sequence and the same in the diagram, the notes list, and the Changes bullets. |
+| `changed-node-marked` | warn | Each changed node has `:::changed` and a circled number. |
+| `diagram-notes` | warn | Each numbered node has a note below the diagram, so the digest makes sense without the picture. |
+| `diagram-size` | warn | The diagram has fewer than 12 nodes. |
+| `section-order` | warn | The known sections are in order. |
+| `unknown-section` | warn | A section is not in the format. |
+| `no-questions` | warn | No Questions section. Use agent notes. |
+| `no-intent` | warn | No intent phrases: `in order to`, `the author`, `intended to`, `we want`, `the goal`, `to make it easier`. The list is a constant in `lint.ts`. |
+| `no-inline-html` | warn | No HTML in the body. Some viewers do not render it. |
+| `no-wikilinks` | warn | No `[[x]]` links. Only Obsidian renders them. |
+| `link-style` | warn | Only standard `[text](url)` links and autolinks. |
+| `table-max-columns` | warn | Tables have at most 5 columns, so they fit in a terminal viewer. |
+
+- Callouts (`> [!NOTE]`) are allowed with no warning. Viewers that do not know them show a blockquote.
+- `fmt.ts` is optional. It makes only the fixes that cannot change the meaning, and it never deletes content:
   - section order
   - ①②③ numbering in the diagram, the notes, and the Changes bullets
   - the `classDef changed` line
   - anchor style
   - table alignment
-  - a Questions section becomes agent notes, and the section is removed
+- `fmt --questions-to-notes` moves a Questions section into agent notes. It does this only when you give the flag.
 - `fmt` is idempotent: a second run gives the same output.
-- `check` = `lint` + anchor coverage. `publish` refuses a digest that fails `check`, unless you give `--force`.
+- `check` = `lint` + anchor coverage. `publish` refuses a digest with errors, unless you give `--force`. Warnings never block `publish`.
 - `diff-digest format` prints `docs/format.md`, then the list of rules from `lint.ts`. So the documentation and the enforcement do not drift apart.
 
 ## 10. UI
 
 - React 19.3. Data comes from the `Api` interface through `useDigest`, `useComments`, and `useEvents` (`use()` + Suspense). An `events` message makes the hooks fetch again.
+- The UI renders CommonMark + GFM, the same baseline as product rule 2, so the UI shows what other viewers show.
 - The digest renders from `marked` tokens into React elements. The UI does not change the DOM after the render. Block ids (`cid`) come from `lib/digest.ts`, so the UI, the linter, and the comments use the same ids.
 - The features are the same as today:
   - comments on digest blocks
@@ -331,9 +355,9 @@ Categories `correctness`, `suspicious`, `perf`, and `pedantic` set to `error`. P
 `bun test`, with temp git repos as fixtures:
 
 - `diff`: parsing, file classes, untracked files, binary detection, the empty-tree base, the import and move filters
-- `lint`: each rule, with a pass case and a fail case
+- `lint`: each rule, with a pass case and a fail case. One test checks that a digest with only valid but unusual Markdown has no `error` issues.
 - `fmt`: each fix, and idempotence
-- `render` / `unrender`: a round trip for each backend
+- `render` / `unrender`: a round trip for each backend. One test checks that the rendered body has no HTML other than the `github` marker.
 - `store`: atomic writes; data that does not match the schema is rejected
 - contract: the router client against a fixture repo, for each procedure
 - backends: `github` with a fake `exec`; `local` with a temp folder
