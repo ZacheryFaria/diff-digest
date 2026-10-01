@@ -74,7 +74,7 @@ src/
     config.ts         read, validate, setGenerated
     store.ts          working copies and comments; atomic writes
     paths.ts          ~/.diff-digest paths
-    digest.ts         pure helpers for the UI too: block ids (cid), anchors, path match
+    digest.ts         pure helpers for the UI too: block ids (cid), anchors, path match, circled numbers, line ends
     frontmatter.ts    parse and write the frontmatter (YAML)
     coverage.ts       hunks that no anchor covers
     model.ts          Markdown → typed Digest model (marked lexer)
@@ -258,7 +258,7 @@ Stricli application. Each command is one file.
 
 The agent writes Markdown. The tool parses it, checks it, and fixes it.
 
-- `model.ts` parses the body with the `marked` lexer into a typed `Digest`: title, generated list, architecture (Mermaid source, numbered nodes, notes list), changes, tables, tests, test gaps, and block ids.
+- `md.ts` parses the body with the `marked` lexer into typed blocks with file lines; list items and blockquotes keep their nested blocks. `model.ts` builds the typed `Digest` from them: title, sections (each with its blocks), the architecture diagram (Mermaid source, numbered nodes), the notes list, the Changes items, and block ids. The generated list, the tests, and the test gaps are read from their sections.
 - `lint.ts`: each rule is `{ id, severity, description, check(model, ctx) → LintIssue[] }`. A `LintIssue` is `{ rule, severity, line, message, hint }`.
 - Severity follows product rule 1:
   - `error` is only for facts that are wrong. The digest does not agree with the code, or the tool cannot read the digest.
