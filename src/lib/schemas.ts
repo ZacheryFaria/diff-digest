@@ -152,3 +152,4 @@ export const CommentSchema = z
 export type Comment = z.infer<typeof CommentSchema>;
 
 export const CommentsFileSchema = z.array(CommentSchema).readonly();
+export type CommentsFile = z.infer<typeof CommentsFileSchema>;
