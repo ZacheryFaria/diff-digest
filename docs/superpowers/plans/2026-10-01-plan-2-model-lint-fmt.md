@@ -485,6 +485,26 @@ describe("parseDiagram", () => {
         ]);
         expect(d.hasChangedClassDef).toBe(false);
     });
+
+    test("edge labels, class lists, and comments do not make nodes", () => {
+        const source = [
+            "flowchart LR",
+            "  %% a comment",
+            "  a -- some label --> b",
+            "  b -->|piped| c",
+            "  c == thick text ==> d",
+            "  d -. dotted .-> e",
+            "  class a,e changed",
+        ].join("\n");
+        const d = parseDiagram(source, 1);
+        expect(d.nodes.map(n => [n.id, n.changed])).toEqual([
+            ["a", true],
+            ["b", false],
+            ["c", false],
+            ["d", false],
+            ["e", true],
+        ]);
+    });
 });
 
 describe("buildModel", () => {
@@ -587,11 +607,12 @@ export interface DigestModel {
     readonly all: readonly Block[];
 }
 
-const KEYWORD = /^(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction|%%)\b/u;
+const KEYWORD = /^(?:(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|click|direction)\b|%%)/u;
 const NODE =
     /([A-Za-z_][\w-]*)\s*(\[\[|\[\(|\(\(|\(\[|\[\/|\[\\|\[|\(|\{\{|\{|>)\s*(.*?)\s*(\]\]|\)\]|\)\)|\]\)|\/\]|\\\]|\]|\)|\}\}|\})(?::::([\w-]+))?/gu;
 const BARE = /^([A-Za-z_][\w-]*)(?::::([\w-]+))?/u;
-const ARROW = /\s*(?:<?[-=.]{2,}>?|--[^-|]+-->|-\.[^.]*\.->)\s*(?:\|[^|]*\|\s*)?/u;
+// Edges with a text label (`-- text -->`, `== text ==>`, `-. text .->`) come first, so the label is not read as a node.
+const ARROW = /\s*(?:--[^-|>]+?-->|==[^=|>]+?==>|-\.[^.|>]+?\.->|<?[-=.]{2,}>?)\s*(?:\|[^|]*\|\s*)?/u;
 const CLASS_LINE = /^class\s+([\w,\s-]+?)\s+([\w-]+)\s*;?$/u;
 
 interface NodeDraft {
@@ -761,12 +782,12 @@ export function buildModel(body: string, lineOffset = 0): DigestModel {
 - [ ] **Step 5: Run the test to make sure that it passes**
 
 Run: `bun test test/lib/model.test.ts`
-Expected: 4 pass, 0 fail.
+Expected: 5 pass, 0 fail.
 
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 52 tests.
+Expected: all steps pass. 53 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1347,7 +1368,7 @@ Expected: 11 pass, 0 fail.
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 63 tests.
+Expected: all steps pass. 64 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1651,7 +1672,7 @@ Expected: 8 pass, 0 fail.
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 71 tests.
+Expected: all steps pass. 72 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -1763,7 +1784,7 @@ Expected: 4 pass, 0 fail.
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 75 tests.
+Expected: all steps pass. 76 tests.
 
 - [ ] **Step 6: Commit**
 
