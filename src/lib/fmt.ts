@@ -18,9 +18,7 @@ export interface FmtResult {
 }
 
 const SHORT_RANGE = /`([\w@#./-]+\.\w+):(\d+)-\2`/gu;
-const CIRCLED_ANY = /[①-⑳]/u;
 const CIRCLED_ALL = /[①-⑳]/gu;
-const LIST_MARKER = /^(\s*(?:[-*+]|\d+[.)])\s+)/u;
 const PIPE = /(?<!\\)\|/u;
 
 interface Chunk {
@@ -73,12 +71,13 @@ export function questionsToNotes(body: string): FmtResult {
     return { body: join(all.filter(c => c.title === null || !QUESTIONS.test(c.title)).map(c => c.text)), questions };
 }
 
-function replaceLeadingNumber(line: string, next: (n: number) => number | undefined): string {
-    const marker = LIST_MARKER.exec(line)?.[1] ?? "";
-    const rest = line.slice(marker.length);
-    const old = leadingNumber(rest);
-    const to = old === null ? undefined : next(old);
-    return to === undefined ? line : `${marker}${rest.replace(CIRCLED_ANY, circled(to))}`;
+/** Maps every circled number in the line. A number that is not in the map does not change. */
+function mapNumbers(line: string, next: (n: number) => number | undefined): string {
+    return line.replaceAll(CIRCLED_ALL, c => {
+        const n = leadingNumber(c);
+        const to = n === null ? undefined : next(n);
+        return to === undefined ? c : circled(to);
+    });
 }
 
 /** Renumbers the changed nodes 1..n in the order of the diagram, in the diagram, the notes, and Changes. */
@@ -94,16 +93,9 @@ export function renumber(body: string): string {
     const lines = body.split("\n");
     const fence = parseBlocks(body).find(b => b.kind === "code" && b.line === diagram.line);
     const last = fence === undefined ? diagram.line : endLine(fence);
-    for (let i = diagram.line; i < last; i += 1) {
-        lines[i] = (lines[i] ?? "").replaceAll(CIRCLED_ALL, c => {
-            const n = leadingNumber(c);
-            const to = n === null ? undefined : next(n);
-            return to === undefined ? c : circled(to);
-        });
-    }
-    for (const item of [...model.notes, ...model.changes]) {
-        lines[item.line - 1] = replaceLeadingNumber(lines[item.line - 1] ?? "", next);
-    }
+    for (let i = diagram.line; i < last; i += 1) lines[i] = mapNumbers(lines[i] ?? "", next);
+    for (const item of [...model.notes, ...model.changes])
+        for (let l = item.line; l <= item.endLine; l += 1) lines[l - 1] = mapNumbers(lines[l - 1] ?? "", next);
     return lines.join("\n");
 }
 

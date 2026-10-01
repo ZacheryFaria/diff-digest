@@ -62,6 +62,31 @@ describe("fmt fixes", () => {
         expect(out).toContain("- ② view:");
     });
 
+    test("renumber maps every circled number on the notes and Changes lines", () => {
+        const body = [
+            "## Architecture",
+            "",
+            "```mermaid",
+            "flowchart LR",
+            '  b["② B"]:::changed --> a["① A"]:::changed',
+            "```",
+            "",
+            "1. ② B reads the file. It feeds ①.",
+            "2. ① A writes",
+            "   the cache for ②.",
+            "",
+            "## Changes",
+            "",
+            "- ① A uses ②: `a.ts:1`",
+            "- ② B: `b.ts:1`",
+            "",
+        ].join("\n");
+        const out = renumber(body);
+        expect(out).toContain('b["① B"]:::changed --> a["② A"]:::changed');
+        expect(out).toContain("1. ① B reads the file. It feeds ②.\n2. ② A writes\n   the cache for ①.");
+        expect(out).toContain("- ② A uses ①: `a.ts:1`\n- ① B: `b.ts:1`");
+    });
+
     test("addChangedClassDef adds the line before the closing fence", () => {
         expect(addChangedClassDef(MESSY)).toContain(`:::changed\n${CHANGED_CLASS_DEF}\n\`\`\``);
     });

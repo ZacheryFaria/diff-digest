@@ -1,6 +1,6 @@
 // The typed Digest model: what the linter, fmt, and the UI read. Pure: no Node or Bun APIs.
 import { blockId } from "./digest";
-import { parseBlocks, type Block, type Inline } from "./md";
+import { endLine, parseBlocks, type Block, type Inline, type ListItem } from "./md";
 
 /** ① is 1 and ⑳ is 20. */
 const CIRCLED_ONE = 0x24_60;
@@ -37,6 +37,8 @@ export interface Diagram {
 export interface NumberedItem {
     readonly number: number | null;
     readonly line: number;
+    /** The last line of the item (with its continuation lines and nested blocks). */
+    readonly endLine: number;
     readonly text: string;
 }
 
@@ -207,15 +209,12 @@ function blocksIn(blocks: readonly Block[], start: string, top: boolean): ModelB
     return out;
 }
 
-function numbered(items: readonly { readonly line: number; readonly text: string }[]): NumberedItem[] {
-    return items.map(i => ({ number: leadingNumber(i.text), line: i.line, text: i.text }));
+function numbered(items: readonly ListItem[]): NumberedItem[] {
+    return items.map(i => ({ number: leadingNumber(i.text), line: i.line, endLine: endLine(i), text: i.text }));
 }
 
-function listItemsIn(blocks: readonly Block[]): { line: number; text: string }[] {
-    const out: { line: number; text: string }[] = [];
-    for (const b of blocks)
-        if (b.kind === "list") for (const item of b.items) out.push({ line: item.line, text: item.text });
-    return out;
+function listItemsIn(blocks: readonly Block[]): ListItem[] {
+    return blocks.flatMap(b => (b.kind === "list" ? b.items : []));
 }
 
 /**
