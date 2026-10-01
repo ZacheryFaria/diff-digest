@@ -10,7 +10,7 @@ import type { Action, ActionStatus, RegistryEntry, ServerEvent, WaitResult } fro
 export interface Bus {
     readonly publish: (id: string, event: ServerEvent) => void;
     readonly subscribe: (id: string, listener: (event: ServerEvent) => void) => () => void;
-    readonly has: (id: string) => boolean;
+    readonly watchedSince: (id: string) => number | null;
 }
 
 /** What procedures use from the action hub (`ActionHub` implements it). */

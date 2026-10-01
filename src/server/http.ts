@@ -43,8 +43,8 @@ function mtime(path: string): number {
 }
 
 export interface PollOptions {
-    /** True when the digest has an open event stream now. Only those digests are polled. */
-    readonly has: (id: string) => boolean;
+    /** When the digest got an open event stream (ms), or null. Only those digests are polled. */
+    readonly watchedSince: (id: string) => number | null;
     readonly publish: (id: string, type: "digest" | "comments") => void;
     /** Gets each new error message once. The default writes one line to stderr. */
     readonly onError?: (message: string) => void;
@@ -75,7 +75,9 @@ export function pollChanges(home: string, options: PollOptions): () => void {
             lastError = message;
         }
         const next = new Map<string, number>();
-        for (const entry of entries.filter(e => options.has(e.id))) {
+        for (const entry of entries) {
+            const since = options.watchedSince(entry.id);
+            if (since === null) continue;
             for (const [file, type] of [
                 [entry.mdPath, "digest"],
                 [commentsPath(entry.mdPath), "comments"],
@@ -83,7 +85,9 @@ export function pollChanges(home: string, options: PollOptions): () => void {
                 const now = mtime(file);
                 const before = seen.get(file);
                 next.set(file, now);
-                if (before !== undefined && before !== now) options.publish(entry.id, type);
+                // The first look at a file counts a change made after the stream opened.
+                const changed = before === undefined ? now >= since : before !== now;
+                if (changed) options.publish(entry.id, type);
             }
         }
         seen = next;
@@ -119,7 +123,7 @@ export function startServer(options: ServerOptions): RunningServer {
         },
     });
     const stopPolling = pollChanges(options.home, {
-        has: id => context.bus.has(id),
+        watchedSince: id => context.bus.watchedSince(id),
         publish: (id, type) => {
             context.bus.publish(id, { type });
         },

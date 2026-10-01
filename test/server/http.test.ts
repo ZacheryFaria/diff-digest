@@ -106,7 +106,7 @@ describe("pollChanges", () => {
         const published: string[] = [];
         const errors: string[] = [];
         stopPolling = pollChanges(home ?? "", {
-            has: () => true,
+            watchedSince: () => 0,
             publish: (id, type) => {
                 published.push(`${id} ${type}`);
             },
@@ -132,7 +132,7 @@ describe("pollChanges", () => {
         const mdPath = setupDigest();
         const published: string[] = [];
         stopPolling = pollChanges(home ?? "", {
-            has: () => false,
+            watchedSince: () => null,
             publish: (id, type) => {
                 published.push(`${id} ${type}`);
             },
@@ -240,5 +240,17 @@ describe("startServer", () => {
         expect(idle).toBe(false);
         await stream.close();
         await waitUntil(() => idle);
+    });
+
+    test("a change right after a stream opens gets an event", async () => {
+        const { url, mdPath } = setup();
+        const seen: string[] = [];
+        for await (const event of await createApiClient(`${url}/rpc`).events({ id: "abcd1234" })) {
+            seen.push(event.type);
+            // The first event proves that the stream is open; change the file before the first poll tick.
+            if (event.type === "status") appendFileSync(mdPath, "\nEarly.\n");
+            if (event.type === "digest") break;
+        }
+        expect(seen).toEqual(["status", "digest"]);
     });
 });

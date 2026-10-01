@@ -26,11 +26,11 @@ describe("ActionHub", () => {
 describe("EventBus", () => {
     test("has() is true only while the id has a listener", () => {
         const bus = new EventBus();
-        expect(bus.has("abcd1234")).toBe(false);
+        expect(bus.watchedSince("abcd1234")).toBeNull();
         const off = bus.subscribe("abcd1234", noop);
-        expect(bus.has("abcd1234")).toBe(true);
+        expect(bus.watchedSince("abcd1234")).not.toBeNull();
         off();
-        expect(bus.has("abcd1234")).toBe(false);
+        expect(bus.watchedSince("abcd1234")).toBeNull();
         expect(bus.subscribers).toBe(0);
     });
 });
