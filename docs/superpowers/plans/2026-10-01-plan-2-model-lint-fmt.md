@@ -155,6 +155,14 @@ describe("parseBlocks", () => {
         ]);
     });
 
+    test("counts a CRLF line end as one line", () => {
+        expect(parseBlocks("# T\r\n\r\n## A\r\n\r\n- a\r\n").map(b => [b.kind, b.line])).toEqual([
+            ["heading", 1],
+            ["heading", 3],
+            ["list", 5],
+        ]);
+    });
+
     test("gives each list item its line and its inline code", () => {
         const [list] = parseBlocks("- a `x.ts:1`\n- **b**\n");
         if (list?.kind !== "list") throw new Error("expected a list");
@@ -356,8 +364,10 @@ function toBlock(source: string, offset: number, token: unknown): Block | null {
     return { ...head, kind: "other", type: base.data.type };
 }
 
-/** Parses Markdown (CommonMark + GFM) into typed blocks with 1-based line numbers. */
-export function parseBlocks(source: string): Block[] {
+/** Parses Markdown (CommonMark + GFM) into typed blocks with 1-based line numbers. CRLF counts as one line end. */
+export function parseBlocks(input: string): Block[] {
+    // marked turns CRLF and CR into LF, so the offsets must use the same text.
+    const source = input.replaceAll(/\r\n?/gu, "\n");
     const tokens: readonly unknown[] = marked.lexer(source, { gfm: true });
     const blocks: Block[] = [];
     let offset = 0;
@@ -374,7 +384,7 @@ export function parseBlocks(source: string): Block[] {
 - [ ] **Step 7: Run the test to make sure that it passes**
 
 Run: `bun test test/lib/md.test.ts`
-Expected: 3 pass, 0 fail.
+Expected: 4 pass, 0 fail.
 
 - [ ] **Step 8: Update the spec layout**
 
@@ -394,7 +404,7 @@ with
 - [ ] **Step 9: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 48 tests.
+Expected: all steps pass. 49 tests.
 
 - [ ] **Step 10: Commit**
 
@@ -799,7 +809,7 @@ Expected: 6 pass, 0 fail.
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 54 tests.
+Expected: all steps pass. 55 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1399,7 +1409,7 @@ Expected: 13 pass, 0 fail.
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 67 tests.
+Expected: all steps pass. 68 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1503,6 +1513,11 @@ describe("fmt fixes", () => {
 describe("formatDigest", () => {
     test("does not change a good digest", () => {
         expect(formatDigest(GOOD_BODY, { questionsToNotes: true }).body).toBe(GOOD_BODY);
+    });
+
+    test("gives the same result for CRLF input, with LF line ends", () => {
+        const crlf = MESSY.replaceAll("\n", "\r\n");
+        expect(formatDigest(crlf, { questionsToNotes: true })).toEqual(formatDigest(MESSY, { questionsToNotes: true }));
     });
 
     test("is idempotent", () => {
@@ -1685,7 +1700,9 @@ export function tableStyle(body: string): string {
     return lines.join("\n");
 }
 
-export function formatDigest(body: string, options: FmtOptions): FmtResult {
+/** Runs every fix. The output uses LF line ends. */
+export function formatDigest(input: string, options: FmtOptions): FmtResult {
+    const body = input.replaceAll(/\r\n?/gu, "\n");
     const moved = options.questionsToNotes ? questionsToNotes(body) : { body, questions: [] };
     const fixed = [orderSections, renumber, addChangedClassDef, anchorStyle, tableStyle].reduce(
         (text, fix) => fix(text),
@@ -1698,12 +1715,12 @@ export function formatDigest(body: string, options: FmtOptions): FmtResult {
 - [ ] **Step 4: Run the test to make sure that it passes**
 
 Run: `bun test test/lib/fmt.test.ts`
-Expected: 8 pass, 0 fail.
+Expected: 9 pass, 0 fail.
 
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 75 tests.
+Expected: all steps pass. 77 tests.
 
 - [ ] **Step 6: Commit**
 
@@ -1815,7 +1832,7 @@ Expected: 4 pass, 0 fail.
 - [ ] **Step 5: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. 79 tests.
+Expected: all steps pass. 81 tests.
 
 - [ ] **Step 6: Commit**
 
