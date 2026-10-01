@@ -13,7 +13,7 @@ export interface FmtOptions {
 
 export interface FmtResult {
     readonly body: string;
-    /** The questions that `questionsToNotes` removed, one per list item or paragraph. */
+    /** The questions that `questionsToNotes` removed: one per list item, and the text of each other block. */
     readonly questions: readonly string[];
 }
 
@@ -43,32 +43,42 @@ function join(parts: readonly string[]): string {
     return `${kept.join("\n\n")}\n`;
 }
 
+/** The place of a known section in KNOWN_SECTIONS, or -1 for the preamble and every other section. */
 function rank(title: string | null): number {
     if (title === null) return -1;
-    const known = KNOWN_SECTIONS.findIndex(k => k.toLowerCase() === title.toLowerCase());
-    return known === -1 ? KNOWN_SECTIONS.length : known;
+    return KNOWN_SECTIONS.findIndex(k => k.toLowerCase() === title.toLowerCase());
 }
 
+/**
+ * Sorts the known sections among the places that known sections have. The preamble and every other
+ * section (unknown sections and Questions) stay where they are, so the order changes only when
+ * `section-order` warns.
+ */
 export function orderSections(body: string): string {
     const all = chunks(body);
-    const sorted = all.toSorted((a, b) => rank(a.title) - rank(b.title));
+    const known = all.filter(c => rank(c.title) !== -1).toSorted((a, b) => rank(a.title) - rank(b.title));
+    const sorted = all.map(c => (rank(c.title) === -1 ? c : (known.shift() ?? c)));
     if (sorted.every((c, i) => c === all[i])) return body;
     return join(sorted.map(c => c.text));
 }
 
+function isQuestions(c: Chunk): boolean {
+    return c.title !== null && QUESTIONS.test(c.title);
+}
+
+/** Removes the Questions section. Returns one question per list item and the text of every other block. */
 export function questionsToNotes(body: string): FmtResult {
     const all = chunks(body);
     const questions: string[] = [];
-    for (const c of all) {
-        if (c.title === null || !QUESTIONS.test(c.title)) continue;
-        for (const b of parseBlocks(c.text)) {
-            if (b.kind === "list") for (const item of b.items) questions.push(item.text.trim());
-            if (b.kind === "paragraph") questions.push(b.text.trim());
+    for (const c of all.filter(chunk => isQuestions(chunk))) {
+        // The first block is the section heading.
+        for (const b of parseBlocks(c.text).slice(1)) {
+            if (b.kind === "list") questions.push(...b.items.map(item => item.text.trim()));
+            else questions.push(b.raw.trim());
         }
     }
-    if (questions.length === 0 && all.every(c => c.title === null || !QUESTIONS.test(c.title)))
-        return { body, questions };
-    return { body: join(all.filter(c => c.title === null || !QUESTIONS.test(c.title)).map(c => c.text)), questions };
+    if (!all.some(chunk => isQuestions(chunk))) return { body, questions };
+    return { body: join(all.filter(chunk => !isQuestions(chunk)).map(c => c.text)), questions };
 }
 
 /** Maps every circled number in the line. A number that is not in the map does not change. */

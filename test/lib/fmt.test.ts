@@ -42,16 +42,34 @@ flowchart LR
 describe("fmt fixes", () => {
     test("orderSections puts known sections in order and keeps all text", () => {
         const out = orderSections(MESSY);
-        expect(out.indexOf("## Architecture")).toBeLessThan(out.indexOf("## Changes"));
+        // The known sections take the places that known sections had. Questions keeps its place.
+        expect(out.indexOf("## Architecture")).toBeLessThan(out.indexOf("## Questions"));
+        expect(out.indexOf("## Questions")).toBeLessThan(out.indexOf("## Changes"));
         expect(out.indexOf("## Changes")).toBeLessThan(out.indexOf("## Tests"));
-        expect(out.indexOf("## Tests")).toBeLessThan(out.indexOf("## Questions"));
         expect(out).toContain("- Q1: does x happen?");
+    });
+
+    test("orderSections does not move an unknown section", () => {
+        const body = "# T\n\n## Summary\n\ntext\n\n## Architecture\n\nx\n";
+        expect(orderSections(body)).toBe(body);
+    });
+
+    test("orderSections swaps Changes and Tests, and an unknown section between them stays", () => {
+        const body = "## Architecture\n\na\n\n## Tests\n\nt\n\n## Notes\n\nn\n\n## Changes\n\nc\n";
+        expect(orderSections(body)).toBe("## Architecture\n\na\n\n## Changes\n\nc\n\n## Notes\n\nn\n\n## Tests\n\nt\n");
     });
 
     test("questionsToNotes removes the section and returns its items", () => {
         const { body, questions } = questionsToNotes(MESSY);
         expect(body).not.toContain("## Questions");
         expect(questions).toEqual(["Q1: does x happen?"]);
+    });
+
+    test("questionsToNotes keeps every block of the section", () => {
+        const body = "# T\n\n## Questions\n\n- Why x?\n\n```ts\nconst y = 1;\n```\n\n> Is z safe?\n> Check it.\n";
+        const { body: out, questions } = questionsToNotes(body);
+        expect(out).toBe("# T\n");
+        expect(questions).toEqual(["Why x?", "```ts\nconst y = 1;\n```", "> Is z safe?\n> Check it."]);
     });
 
     test("renumber follows the diagram order in the diagram, the notes, and Changes", () => {
