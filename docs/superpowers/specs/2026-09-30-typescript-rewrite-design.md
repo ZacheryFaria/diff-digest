@@ -214,7 +214,7 @@ interface Backend {
 ```ts
 class DigestError extends Error { code: ErrorCode; hint?: string; data?: unknown }
 type ErrorCode = "BAD_INPUT" | "NOT_FOUND" | "LINT_FAILED" | "COVERAGE_GAP" | "STALE"
-               | "NO_BACKEND" | "BACKEND_FAILED" | "BAD_CONFIG" | "SERVER_DOWN";
+               | "NO_BACKEND" | "BACKEND_FAILED" | "BAD_CONFIG" | "SERVER_DOWN" | "GIT_FAILED";
 ```
 
 - Each code has its own exit code. Usage errors exit with 2.
