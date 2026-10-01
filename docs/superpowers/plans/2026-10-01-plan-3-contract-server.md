@@ -39,3 +39,14 @@
 3. **Contract and router.** `src/lib/contract.ts` (digest.get/lint/check, files.diff/read/setGenerated, comments.list/add/remove/resolve/note/markShared, actions.send/wait/status, events), `src/server/router.ts`, `src/server/bus.ts` (events per digest id), `src/server/actions.ts` (queue + waiters). Tests through `createRouterClient`.
 4. **HTTP server.** `src/server/http.ts`: `startServer({ port, home })` with `Bun.serve`, the RPC handler, the Host/Origin check, the placeholder page, file watching that publishes `digest` and `comments` events, and the idle timer. Tests: RPC over HTTP with the typed client, rejected Host/Origin, an event after a comment is added, send → wait.
 5. **Lifecycle.** `src/server/lifecycle.ts`: `server.json`, `server.lock`, `readServerInfo`, `isAlive`, `ensureServer(command)`, `stopServer`, version restart; `src/server/main.ts` (the `server run` entry until plan 4). Tests: start from source in a temp home, status, a second `ensureServer` reuses it, stop, a stale `server.json`.
+
+## Carry-forward for plans 4–7
+
+| Plan | Item |
+|---|---|
+| 4 | (Done in plan 4 Task 1.) A change in the first poll tick after a stream subscribes got no event; the baseline is now the subscribe time. |
+| any | `withLock` takeover still has a narrow race with three callers during the takeover of a dead holder's lock. A later fix: a lock file made with `O_EXCL`, with the owner token inside. |
+| any | A dead holder's pid that the system reuses keeps the lock "live" until a person removes it (the `LOCKED` hint says so). |
+| 6 | A queued click expires after 10 minutes without a `status` event; the UI must refresh the status or show a notice. Consider an expiry as long as `MAX_WAIT_MS`. |
+| any | `startLocked` waits the full 10 s when the child starts and exits at once (for example a port in use); listen for the child's `exit`. |
+| any | The test suite takes about 16 s, because the lifecycle tests start real servers. |
