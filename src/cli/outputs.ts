@@ -8,7 +8,7 @@ import {
     LintIssueSchema,
     ShaSchema,
 } from "../lib/schemas";
-import { CheckResultSchema } from "../lib/schemas-api";
+import { CheckResultSchema, RegistryEntrySchema, ServerInfoSchema, WaitResultSchema } from "../lib/schemas-api";
 import { TargetSchema } from "./target";
 
 export const TextOutputSchema = z.string();
@@ -56,6 +56,18 @@ export type HunksOutput = z.infer<typeof HunksOutputSchema>;
 export const LintOutputSchema = z.array(LintIssueSchema).readonly();
 export type LintOutput = z.infer<typeof LintOutputSchema>;
 
+export const ServeOutputSchema = z.strictObject({ url: z.string(), id: z.string(), pid: z.int() }).readonly();
+
+export const ServerStatusOutputSchema = z
+    .strictObject({
+        running: z.boolean(),
+        info: ServerInfoSchema.nullable(),
+        digests: z.array(RegistryEntrySchema).readonly(),
+    })
+    .readonly();
+
+export const StopOutputSchema = z.strictObject({ result: z.enum(["none", "stopped", "timeout"]) }).readonly();
+
 export const OkOutputSchema = z.strictObject({ ok: z.literal(true) }).readonly();
 
 export const FmtOutputSchema = z
@@ -78,6 +90,12 @@ export const OUTPUTS = {
     resolve: CommentSchema,
     note: CommentSchema,
     mark: OkOutputSchema,
+    serve: ServeOutputSchema,
+    wait: WaitResultSchema,
+    "server status": ServerStatusOutputSchema,
+    "server stop": StopOutputSchema,
+    "server restart": ServerStatusOutputSchema,
+    "server logs": TextOutputSchema,
 } as const;
 
 export type CommandName = keyof typeof OUTPUTS;

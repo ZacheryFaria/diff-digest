@@ -1,34 +1,13 @@
 // The command tree.
 import { buildApplication, buildRouteMap, help, version } from "@stricli/core";
 import { VERSION } from "../lib/version";
-import { commentsCommand, markCommand, noteCommand, resolveCommand } from "./commands/comments";
-import { configCommand } from "./commands/config";
-import { fmtCommand } from "./commands/fmt";
-import { checkCommand, lintCommand } from "./commands/lint";
-import { formatCommand, promptCommand } from "./commands/format";
-import { schemaCommand } from "./commands/schema";
-import { hunksCommand } from "./commands/hunks";
-import { initCommand, pathCommand, targetCommand } from "./commands/target";
+import { digestRoutes } from "./routes/digest";
+import { infoRoutes } from "./routes/info";
+import { reviewRoutes } from "./routes/review";
 
 export const routes = buildRouteMap({
     docs: { brief: "Make a git diff into a short, reviewable change spec, and review it in a local UI" },
-    routes: {
-        target: targetCommand,
-        init: initCommand,
-        path: pathCommand,
-        hunks: hunksCommand,
-        lint: lintCommand,
-        check: checkCommand,
-        fmt: fmtCommand,
-        comments: commentsCommand,
-        resolve: resolveCommand,
-        note: noteCommand,
-        mark: markCommand,
-        format: formatCommand,
-        prompt: promptCommand,
-        config: configCommand,
-        schema: schemaCommand,
-    },
+    routes: { ...digestRoutes, ...reviewRoutes, ...infoRoutes },
 });
 
 export const app = buildApplication(
