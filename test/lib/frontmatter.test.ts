@@ -19,6 +19,11 @@ describe("frontmatter", () => {
         expect(parseDigest(md)).toEqual({ frontmatter: FM, body: "\n# Title\n" });
     });
 
+    test("reads a digest with CRLF line ends", () => {
+        const md = serializeDigest(FM, "# Title\n").replaceAll("\n", "\r\n");
+        expect(parseDigest(md)).toEqual({ frontmatter: FM, body: "\n# Title\n" });
+    });
+
     test("a digest with no frontmatter is BAD_INPUT", () => {
         expectDigestError(() => parseDigest("# Title\n"), "BAD_INPUT");
     });

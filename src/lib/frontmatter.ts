@@ -1,16 +1,19 @@
 import { z } from "zod";
+import { toLf } from "./digest";
 import { DigestError } from "./errors";
 import { FrontmatterSchema, type Frontmatter } from "./schemas";
 
-const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/u;
+/** The frontmatter block at the start of a digest with LF line ends. Group 1 is the YAML. */
+export const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/u;
 
 export interface ParsedDigest {
     readonly frontmatter: Frontmatter;
     readonly body: string;
 }
 
-/** Splits a digest into frontmatter and body, and validates the frontmatter. */
-export function parseDigest(md: string): ParsedDigest {
+/** Splits a digest into frontmatter and body, and validates the frontmatter. The body has LF line ends. */
+export function parseDigest(input: string): ParsedDigest {
+    const md = toLf(input);
     const match = FRONTMATTER.exec(md);
     const raw = match?.[1];
     if (match === null || raw === undefined) {

@@ -3,6 +3,7 @@
 // Pure: the UI imports this file, so it must not import Node or Bun APIs.
 import { marked } from "marked";
 import { z } from "zod";
+import { toLf } from "./digest";
 
 export type Inline =
     | { readonly kind: "text"; readonly text: string }
@@ -221,7 +222,7 @@ function toBlock(source: string, offset: number, token: unknown): Block | null {
 /** Parses Markdown (CommonMark + GFM) into typed blocks with 1-based line numbers. CRLF counts as one line end. */
 export function parseBlocks(input: string): Block[] {
     // marked turns CRLF and CR into LF, so the offsets must use the same text.
-    const source = input.replaceAll(/\r\n?/gu, "\n");
+    const source = toLf(input);
     const tokens: readonly unknown[] = marked.lexer(source, { gfm: true });
     const blocks: Block[] = [];
     let offset = 0;

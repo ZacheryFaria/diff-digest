@@ -7,6 +7,11 @@ export interface Anchor {
     readonly end: number;
 }
 
+/** Changes CRLF and CR line ends to LF. marked does the same, so line numbers use LF text. */
+export function toLf(text: string): string {
+    return text.replaceAll(/\r\n?/gu, "\n");
+}
+
 /** An anchor is a code span `path:line` or `path:start-end`. */
 export const ANCHOR = /`([\w@#./-]+\.\w+):(\d+)(?:-(\d+))?`/gu;
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { anchors, blockId, findFile } from "../../src/lib/digest";
+import { anchors, blockId, findFile, toLf } from "../../src/lib/digest";
 import type { ChangedFile } from "../../src/lib/schemas";
 
 describe("digest helpers", () => {
@@ -8,6 +8,10 @@ describe("digest helpers", () => {
             { path: "src/a.ts", start: 10, end: 10 },
             { path: "b.tsx", start: 3, end: 7 },
         ]);
+    });
+
+    test("toLf changes CRLF and CR line ends to LF", () => {
+        expect(toLf("a\r\nb\rc\n")).toBe("a\nb\nc\n");
     });
 
     test("blockId is stable and depends on the section", () => {

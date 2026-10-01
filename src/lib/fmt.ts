@@ -1,5 +1,6 @@
 // Safe auto-fixes for a digest body (spec §9). Each fix keeps the meaning and never deletes
 // content. Only `questionsToNotes` removes a section, and it returns the text it removed.
+import { toLf } from "./digest";
 import { KNOWN_SECTIONS, QUESTIONS } from "./lint/structure";
 import { codeLines, endLine, parseBlocks } from "./md";
 import { buildModel, circled, leadingNumber } from "./model";
@@ -150,7 +151,7 @@ export function tableStyle(body: string): string {
 
 /** Runs every fix. The output uses LF line ends. */
 export function formatDigest(input: string, options: FmtOptions): FmtResult {
-    const body = input.replaceAll(/\r\n?/gu, "\n");
+    const body = toLf(input);
     const moved = options.questionsToNotes ? questionsToNotes(body) : { body, questions: [] };
     const fixed = [orderSections, renumber, addChangedClassDef, anchorStyle, tableStyle].reduce(
         (text, fix) => fix(text),

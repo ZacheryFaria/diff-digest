@@ -13,6 +13,10 @@ describe("lintDigest", () => {
         expect(lintDigest(`${FRONTMATTER}${GOOD_BODY}`, OK)).toEqual([]);
     });
 
+    test("a good digest with CRLF line ends has no issues", () => {
+        expect(lintDigest(`${FRONTMATTER}${GOOD_BODY}`.replaceAll("\n", "\r\n"), OK)).toEqual([]);
+    });
+
     test("valid but unusual Markdown gives no errors", () => {
         const body = `${GOOD_BODY}\n## Notes\n\n> [!NOTE]\n> A callout.\n\n- [ ] task\n\n~~old~~ <https://x.dev>\n\n---\n\n<div>raw</div>\n`;
         const issues = lintDigest(`${FRONTMATTER}${body}`, OK);

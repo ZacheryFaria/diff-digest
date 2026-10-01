@@ -1,7 +1,8 @@
 // Lint rules for a digest (spec §9). Errors are facts that are wrong; warnings are best practices.
 // No rule rejects valid Markdown.
 import { DigestError } from "../errors";
-import { parseDigest } from "../frontmatter";
+import { toLf } from "../digest";
+import { FRONTMATTER, parseDigest } from "../frontmatter";
 import { buildModel } from "../model";
 import type { LintIssue } from "../schemas";
 import { anchorResolves, linkStyle, noInlineHtml, noIntent, noWikilinks, tableMaxColumns } from "./content";
@@ -32,12 +33,11 @@ export const RULES: readonly LintRule[] = [
     tableMaxColumns,
 ];
 
-const FRONTMATTER_BLOCK = /^---\n[\s\S]*?\n---\n?/u;
-
-/** Lints a full digest file (frontmatter + body). Issues are sorted by line. */
-export function lintDigest(md: string, ctx: LintContext): LintIssue[] {
+/** Lints a full digest file (frontmatter + body). Issues are sorted by line. CRLF counts as one line end. */
+export function lintDigest(file: string, ctx: LintContext): LintIssue[] {
+    const md = toLf(file);
     let frontmatterError: string | null = null;
-    let body = md.replace(FRONTMATTER_BLOCK, "");
+    let body = md.replace(FRONTMATTER, "");
     try {
         body = parseDigest(md).body;
     } catch (error) {
