@@ -26,7 +26,7 @@ describe("parseDiagram", () => {
         const source = [
             "flowchart LR",
             "  %% a comment",
-            "  a -- some label --> b",
+            "  a -- some re-try label --> b",
             "  b -->|piped| c",
             "  c == thick text ==> d",
             "  d -. dotted .-> e",
@@ -39,6 +39,17 @@ describe("parseDiagram", () => {
             ["c", false],
             ["d", false],
             ["e", true],
+        ]);
+    });
+
+    test("a chain of edges with no labels keeps every node", () => {
+        expect(parseDiagram("flowchart LR\n  a --- b --> c ==> d -.-> e <--> f\n", 1).nodes.map(n => n.id)).toEqual([
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
         ]);
     });
 });

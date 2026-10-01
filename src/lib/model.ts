@@ -70,8 +70,9 @@ const KEYWORD = /^(?:(?:flowchart|graph|subgraph|end|classDef|style|linkStyle|cl
 const NODE =
     /([A-Za-z_][\w-]*)\s*(\[\[|\[\(|\(\(|\(\[|\[\/|\[\\|\[|\(|\{\{|\{|>)\s*(.*?)\s*(\]\]|\)\]|\)\)|\]\)|\/\]|\\\]|\]|\)|\}\}|\})(?::::([\w-]+))?/gu;
 const BARE = /^([A-Za-z_][\w-]*)(?::::([\w-]+))?/u;
-// Edges with a text label (`-- text -->`, `== text ==>`, `-. text .->`) come first, so the label is not read as a node.
-const ARROW = /\s*(?:--[^-|>]+?-->|==[^=|>]+?==>|-\.[^.|>]+?\.->|<?[-=.]{2,}>?)\s*(?:\|[^|]*\|\s*)?/u;
+// Edges with a text label (`-- text -->`, `== text ==>`, `-. text .->`) come first, so the label is not read as a
+// node. The label may contain dashes, but its first character is not the edge character, so `a --- b --> c` is two edges.
+const ARROW = /\s*(?:--[^-|>][^|>]*?-->|==[^=|>][^|>]*?==>|-\.[^.|>][^|>]*?\.->|<?[-=.]{2,}>?)\s*(?:\|[^|]*\|\s*)?/u;
 const CLASS_LINE = /^class\s+([\w,\s-]+?)\s+([\w-]+)\s*;?$/u;
 
 interface NodeDraft {
