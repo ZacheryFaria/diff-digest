@@ -63,7 +63,7 @@
                     {
                         "patterns": [
                             {
-                                "group": ["../cli/*", "../server/*", "../app/*", "react", "react-dom"],
+                                "group": ["**/cli/**", "**/server/**", "**/app/**", "react", "react-dom"],
                                 "message": "src/lib must not import other src folders or React."
                             }
                         ]
