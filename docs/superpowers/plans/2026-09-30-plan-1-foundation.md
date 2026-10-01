@@ -1713,7 +1713,7 @@ git commit -m "minor: add anchor coverage check"
 **Interfaces:**
 - Consumes: `storeDir`, `configPath` (Task 2), `CommentsFileSchema`, `Comment`, `ConfigFileSchema`, `ConfigFile`, `BackendConfigSchema`, `BackendConfig`, `RepoConfig` (Task 2), `DigestError` (Task 2).
 - Produces (`store.ts`): `writeAtomic(path, data)`, `readJson(path) → unknown`, `workingCopyPath(repo, name, home?)`, `commentsPath(mdPath)`, `readComments(mdPath) → readonly Comment[]` (throws `BAD_INPUT`), `writeComments(mdPath, comments)`.
-- Produces (`config.ts`): `interface ResolvedConfig { repoKeys; key; backends; publishTo; generated; repoGenerated }`, `readConfigFile(path?) → ConfigFile` (throws `BAD_CONFIG`), `resolveConfig(file, repoKeys) → ResolvedConfig` (throws `BAD_CONFIG` when `publishTo` names a missing backend), `generatedMatcher(config) → (path: string) => boolean`, `exactPattern(path)`, `setGenerated(path, on, repoKeys, file?)`.
+- Produces (`config.ts`): `interface ResolvedConfig { repoKeys; key; backends; publishTo; generated; repoGenerated }`, `readConfigFile(path?) → ConfigFile` (throws `BAD_CONFIG` for a file that is not JSON or does not match the schema), `resolveConfig(file, repoKeys) → ResolvedConfig` (throws `BAD_CONFIG` when `publishTo` names a missing backend), `generatedMatcher(config) → (path: string) => boolean`, `exactPattern(path)`, `setGenerated(path, on, repoKeys, file?)`.
 - Defaults: with no `backends`, the only backend is `github: { type: "github" }`. With no `publishTo`, it is `["github"]`. `setGenerated` writes back only the keys that were in the file, plus the changed repo entry. It never writes the defaults.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1805,6 +1805,13 @@ describe("config", () => {
         expect(resolved.publishTo).toEqual(["github"]);
         expect(Object.keys(resolved.backends)).toEqual(["github"]);
         expect(resolved.generated).toEqual([]);
+    });
+
+    test("a file that is not JSON is BAD_CONFIG", () => {
+        dir = tempDir("dd-config-");
+        const path = join(dir, "config.json");
+        writeFileSync(path, "{ not json");
+        expectDigestError(() => readConfigFile(path), "BAD_CONFIG");
     });
 
     test("an unknown key is BAD_CONFIG", () => {
@@ -1942,7 +1949,13 @@ const DEFAULT_BACKENDS: Readonly<Record<string, BackendConfig>> = {
 
 export function readConfigFile(path: string = configPath()): ConfigFile {
     if (!existsSync(path)) return {};
-    const result = ConfigFileSchema.safeParse(readJson(path));
+    let raw: unknown;
+    try {
+        raw = readJson(path);
+    } catch (error) {
+        throw new DigestError("BAD_CONFIG", `${path} is not valid JSON.`, { cause: error });
+    }
+    const result = ConfigFileSchema.safeParse(raw);
     if (!result.success) {
         throw new DigestError("BAD_CONFIG", `${path} is not valid:\n${z.prettifyError(result.error)}`);
     }
@@ -2006,12 +2019,12 @@ export function setGenerated(
 - [ ] **Step 5: Run the tests to make sure that they pass**
 
 Run: `bun test test/lib/store.test.ts test/lib/config.test.ts`
-Expected: 11 pass, 0 fail.
+Expected: 12 pass, 0 fail.
 
 - [ ] **Step 6: Run the full check**
 
 Run: `bun run verify`
-Expected: all steps pass. The full suite has 36 tests.
+Expected: all steps pass. The full suite has 37 tests.
 
 - [ ] **Step 7: Commit**
 
