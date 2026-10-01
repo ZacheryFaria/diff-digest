@@ -4,10 +4,21 @@ import { VERSION } from "../lib/version";
 import { configCommand } from "./commands/config";
 import { formatCommand, promptCommand } from "./commands/format";
 import { schemaCommand } from "./commands/schema";
+import { hunksCommand } from "./commands/hunks";
+import { initCommand, pathCommand, targetCommand } from "./commands/target";
 
 export const routes = buildRouteMap({
     docs: { brief: "Make a git diff into a short, reviewable change spec, and review it in a local UI" },
-    routes: { format: formatCommand, prompt: promptCommand, config: configCommand, schema: schemaCommand },
+    routes: {
+        target: targetCommand,
+        init: initCommand,
+        path: pathCommand,
+        hunks: hunksCommand,
+        format: formatCommand,
+        prompt: promptCommand,
+        config: configCommand,
+        schema: schemaCommand,
+    },
 });
 
 export const app = buildApplication(
