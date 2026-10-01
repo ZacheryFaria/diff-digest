@@ -72,6 +72,43 @@
             }
         },
         {
+            "files": [
+                "src/lib/digest.ts",
+                "src/lib/schemas.ts",
+                "src/lib/md.ts",
+                "src/lib/model.ts",
+                "src/lib/render.ts"
+            ],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "patterns": [
+                            {
+                                "group": ["**/cli/**", "**/server/**", "**/app/**", "react", "react-dom"],
+                                "message": "src/lib must not import other src folders or React."
+                            },
+                            {
+                                "group": ["node:*", "bun", "bun:*"],
+                                "message": "The UI imports this file, so it must not import Node or Bun APIs."
+                            }
+                        ]
+                    }
+                ],
+                "no-restricted-globals": [
+                    "error",
+                    {
+                        "name": "Bun",
+                        "message": "The UI imports this file, so it must not use Bun APIs."
+                    },
+                    {
+                        "name": "process",
+                        "message": "The UI imports this file, so it must not use Node APIs."
+                    }
+                ]
+            }
+        },
+        {
             "files": ["test/**"],
             "rules": {
                 "max-lines-per-function": "off"

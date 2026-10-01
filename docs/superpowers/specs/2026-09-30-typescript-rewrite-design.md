@@ -78,7 +78,8 @@ src/
     frontmatter.ts    parse and write the frontmatter (YAML)
     coverage.ts       hunks that no anchor covers
     model.ts          Markdown → typed Digest model (marked lexer)
-    lint.ts           rules on the model
+    md.ts             marked tokens → typed blocks with lines (pure)
+    lint/             rules on the model: rule.ts, frontmatter.ts, diagram.ts, structure.ts, content.ts, index.ts
     fmt.ts            safe auto-fixes
     render.ts         render / unrender for backends
     backends/
