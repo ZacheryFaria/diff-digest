@@ -26,3 +26,10 @@ export const idFlag = {
 export interface RefFlags extends JsonFlags {
     readonly id?: string;
 }
+
+export const refFlag = {
+    kind: "parsed",
+    parse: String,
+    brief: "A branch, commit, range, or digest .md path",
+    optional: true,
+} as const;

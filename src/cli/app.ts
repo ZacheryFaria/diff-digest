@@ -1,6 +1,7 @@
 // The command tree.
 import { buildApplication, buildRouteMap, help, version } from "@stricli/core";
 import { VERSION } from "../lib/version";
+import { commentsCommand, markCommand, noteCommand, resolveCommand } from "./commands/comments";
 import { configCommand } from "./commands/config";
 import { fmtCommand } from "./commands/fmt";
 import { checkCommand, lintCommand } from "./commands/lint";
@@ -19,6 +20,10 @@ export const routes = buildRouteMap({
         lint: lintCommand,
         check: checkCommand,
         fmt: fmtCommand,
+        comments: commentsCommand,
+        resolve: resolveCommand,
+        note: noteCommand,
+        mark: markCommand,
         format: formatCommand,
         prompt: promptCommand,
         config: configCommand,
