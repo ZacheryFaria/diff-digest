@@ -55,14 +55,30 @@ export function isBinaryFile(fullPath: string): boolean {
 export function changedFiles(ctx: RepoContext, isGenerated: (path: string) => boolean): ChangedFile[] {
     const range = rangeArgs(ctx);
     const entries: Omit<ChangedFile, "cls">[] = [];
-    for (const line of git(ctx.root, ["diff", "--no-ext-diff", "--name-status", "-M", ...range]).split("\n")) {
-        const [status, a, b] = line.split("\t");
-        if (status === undefined || a === undefined || status === "") continue;
-        entries.push({ status: FileStatusSchema.parse(status.charAt(0)), oldPath: a, path: b ?? a, untracked: false });
+    const tokens = git(ctx.root, ["diff", "--no-ext-diff", "--name-status", "-z", "-M", ...range]).split("\0");
+    for (let i = 0; i < tokens.length;) {
+        const status = tokens[i];
+        if (status === undefined || status === "") {
+            i += 1;
+            continue;
+        }
+        const letter = FileStatusSchema.parse(status.charAt(0));
+        if (letter === "R" || letter === "C") {
+            const oldPath = tokens[i + 1];
+            const path = tokens[i + 2];
+            if (oldPath === undefined || path === undefined) break;
+            entries.push({ status: letter, oldPath, path, untracked: false });
+            i += 3;
+        } else {
+            const path = tokens[i + 1];
+            if (path === undefined) break;
+            entries.push({ status: letter, oldPath: path, path, untracked: false });
+            i += 2;
+        }
     }
     if (ctx.head === "worktree") {
         for (const path of git(ctx.root, ["ls-files", "-z", "--others", "--exclude-standard"]).split("\0")) {
-            if (path !== "") entries.push({ status: "A", oldPath: path, path, untracked: true });
+            if (path !== "" && !path.endsWith("/")) entries.push({ status: "A", oldPath: path, path, untracked: true });
         }
     }
     const binary = binaryPaths(ctx, range);
@@ -134,42 +150,81 @@ interface HunkBuilder {
     readonly added: DiffLine[];
 }
 
+interface HunkStart {
+    readonly builder: HunkBuilder;
+    readonly oldN: number;
+    readonly newN: number;
+    readonly oldLeft: number;
+    readonly newLeft: number;
+}
+
+/** A new hunk builder from a `@@ ... @@` header's captures, with its line counters. */
+function startHunk(
+    oldStart: string,
+    oldCount: string | undefined,
+    newStart: string,
+    newCount: string | undefined,
+): HunkStart {
+    const oldN = Number(oldStart);
+    const newN = Number(newStart);
+    const newLeft = newCount === undefined ? 1 : Number(newCount);
+    const oldLeft = oldCount === undefined ? 1 : Number(oldCount);
+    return {
+        builder: {
+            header: {
+                start: Math.max(newN, 1),
+                end: Math.max(newN + newLeft - 1, newN, 1),
+                oldStart: oldN,
+                oldCount: oldLeft,
+                newStart: newN,
+                newCount: newLeft,
+            },
+            removed: [],
+            added: [],
+        },
+        oldN,
+        newN,
+        oldLeft,
+        newLeft,
+    };
+}
+
 export function parseDiff(text: string): Hunk[] {
     const builders: HunkBuilder[] = [];
     let current: HunkBuilder | null = null;
     let oldN = 0;
     let newN = 0;
+    // Lines still expected on each side of the open hunk, from its header's oldCount/newCount.
+    // A "---"/"+++ " line is a real file header only outside any hunk, or once both reach zero;
+    // otherwise it is hunk content (for example a removed "-- note" or added "++ x" line).
+    let oldLeft = 0;
+    let newLeft = 0;
     for (const line of text.split("\n")) {
         const match = HUNK_HEADER.exec(line);
         if (match !== null) {
             const [, oldStart = "0", oldCount, newStart = "0", newCount] = match;
-            oldN = Number(oldStart);
-            newN = Number(newStart);
-            const count = newCount === undefined ? 1 : Number(newCount);
-            current = {
-                header: {
-                    start: Math.max(newN, 1),
-                    end: Math.max(newN + count - 1, newN, 1),
-                    oldStart: oldN,
-                    oldCount: oldCount === undefined ? 1 : Number(oldCount),
-                    newStart: newN,
-                    newCount: count,
-                },
-                removed: [],
-                added: [],
-            };
+            const started = startHunk(oldStart, oldCount, newStart, newCount);
+            current = started.builder;
+            oldN = started.oldN;
+            newN = started.newN;
+            oldLeft = started.oldLeft;
+            newLeft = started.newLeft;
             builders.push(current);
-        } else if (current === null || /^(\+\+\+|---) /u.test(line)) {
+        } else if (current === null || (oldLeft <= 0 && newLeft <= 0 && /^(\+\+\+|---) /u.test(line))) {
             continue;
         } else if (line.startsWith("-")) {
             current.removed.push({ n: oldN, text: line.slice(1) });
             oldN += 1;
+            oldLeft -= 1;
         } else if (line.startsWith("+")) {
             current.added.push({ n: newN, text: line.slice(1) });
             newN += 1;
+            newLeft -= 1;
         } else if (line.startsWith(" ")) {
             oldN += 1;
             newN += 1;
+            oldLeft -= 1;
+            newLeft -= 1;
         }
     }
     const hunks: Hunk[] = [];

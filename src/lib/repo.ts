@@ -29,7 +29,7 @@ export interface OriginRepo {
 
 /** Runs git and returns the result. It never throws for a non-zero exit. */
 export function runGit(root: string, args: readonly string[], input?: string): GitResult {
-    const result = Bun.spawnSync(["git", ...args], {
+    const result = Bun.spawnSync(["git", "-c", "color.ui=never", ...args], {
         cwd: root,
         stdin: input === undefined ? "ignore" : Buffer.from(input),
         stdout: "pipe",
