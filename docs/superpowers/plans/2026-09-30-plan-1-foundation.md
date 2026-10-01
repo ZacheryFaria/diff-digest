@@ -179,9 +179,12 @@ The user approved exactly two changes from the full strict rule set. Do not add 
 - `max-lines-per-function` is off in `test/**` only, because `describe` blocks are long. It stays on (50 lines) in `src/` and `scripts/`.
 - `typescript/prefer-readonly-parameter-types` has one `allow` entry: the `Sha` type from `src/lib/schemas.ts`. tsgolint counts the string methods of a branded string as mutable when the brand is inside an object.
 
+`ignorePatterns` skips `scripts/install.mjs`, the old JavaScript installer. Plan 7 deletes it. Do not edit it in this plan.
+
 ```json
 {
     "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "ignorePatterns": ["scripts/install.mjs"],
     "plugins": ["typescript", "unicorn", "import", "promise", "react"],
     "categories": {
         "correctness": "error",
