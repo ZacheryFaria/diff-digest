@@ -40,7 +40,8 @@ export function resolveConfig(file: Readonly<ConfigFile>, repoKeys: readonly [st
     const key = repoKeys.find(k => file.repos?.[k] !== undefined);
     const repo: RepoConfig = key === undefined ? {} : (file.repos?.[key] ?? {});
     const backends = file.backends ?? DEFAULT_BACKENDS;
-    const publishTo = repo.publishTo ?? file.publishTo ?? ["github"];
+    const defaultPublishTo = backends["github"] === undefined ? [] : ["github"];
+    const publishTo = repo.publishTo ?? file.publishTo ?? defaultPublishTo;
     for (const name of publishTo) {
         if (backends[name] === undefined) {
             throw new DigestError("BAD_CONFIG", `publishTo names "${name}", but no backend has that name.`);

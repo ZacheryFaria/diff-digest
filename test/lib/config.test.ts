@@ -42,6 +42,11 @@ describe("config", () => {
         expectDigestError(() => readConfigFile(path), "BAD_CONFIG");
     });
 
+    test("the default publishTo is empty when backends has no github entry", () => {
+        const resolved = resolveConfig({ backends: { notes: { type: "local", dir: "/x" } } }, ["r"]);
+        expect(resolved.publishTo).toEqual([]);
+    });
+
     test("publishTo must name a backend", () => {
         expectDigestError(() => resolveConfig({ publishTo: ["notes"] }, ["repo"]), "BAD_CONFIG");
     });
