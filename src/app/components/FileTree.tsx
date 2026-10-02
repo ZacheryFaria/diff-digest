@@ -6,8 +6,31 @@ import { useApp } from "../state/context";
 import { buildTree, type TreeDir, type TreeFile } from "../tree";
 
 /** `active` is the open path; a digest anchor can be a path suffix, as the server reads it. */
+function FileLabel({ file }: { readonly file: TreeFile }): ReactNode {
+    return (
+        <>
+            <span className={`status s-${file.status}`}>{file.status}</span>
+            <span className="name">{file.name}</span>
+            <span className="cls">{file.marked ? "marked" : file.cls}</span>
+        </>
+    );
+}
+
+/** In a static export, a file links to the repo web page, or is plain text. */
+function ExportedFile({ file, href }: { readonly file: TreeFile; readonly href: string | null }): ReactNode {
+    return href === null ? (
+        <span className="row">
+            <FileLabel file={file} />
+        </span>
+    ) : (
+        <a className="row" href={href} target="_blank" rel="noreferrer">
+            <FileLabel file={file} />
+        </a>
+    );
+}
+
 function FileRow({ file, active }: { readonly file: TreeFile; readonly active: string | null }): ReactNode {
-    const { openCode } = useApp();
+    const { openCode, exported } = useApp();
     const open = (): void => {
         openCode({ path: file.path, rev: file.status === "D" ? "base" : "diff" });
     };
@@ -16,11 +39,13 @@ function FileRow({ file, active }: { readonly file: TreeFile; readonly active: s
             className={`file ${file.cls}${active !== null && matchesPath(file.path, active) ? " active" : ""}`}
             title={file.oldPath === file.path ? file.path : `${file.oldPath} → ${file.path}`}
         >
-            <button type="button" onClick={open}>
-                <span className={`status s-${file.status}`}>{file.status}</span>
-                <span className="name">{file.name}</span>
-                <span className="cls">{file.marked ? "marked" : file.cls}</span>
-            </button>
+            {exported === null ? (
+                <button type="button" onClick={open}>
+                    <FileLabel file={file} />
+                </button>
+            ) : (
+                <ExportedFile file={file} href={exported.linkFor(file.path)} />
+            )}
         </li>
     );
 }

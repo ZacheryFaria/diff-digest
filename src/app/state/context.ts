@@ -2,6 +2,7 @@
 import { createContext, useContext } from "react";
 import type { ApiClient } from "../../lib/client";
 import type { Comment, CommentTarget } from "../../lib/schemas";
+import type { ExportLinks } from "../export-links";
 
 export interface CodeTarget {
     readonly path: string;
@@ -20,6 +21,8 @@ export interface AppActions {
     readonly codePath: string | null;
     readonly openCode: (target: CodeTarget) => void;
     readonly toast: (text: string, url?: string) => void;
+    /** A static export: no writes, and anchors link to the repo web page. Null on the live page. */
+    readonly exported: ExportLinks | null;
 }
 
 export const AppContext = createContext<AppActions | null>(null);

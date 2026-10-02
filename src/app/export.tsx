@@ -2,6 +2,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { exportLinks } from "./export-links";
 import { readPayload, staticApi } from "./static-api";
 
 const root = document.querySelector("#root");
@@ -12,7 +13,13 @@ if (root !== null) {
             {payload === null ? (
                 <p className="error">This export has no digest in it.</p>
             ) : (
-                <App api={staticApi(payload)} id={payload.digest.id} />
+                <App
+                    api={staticApi(payload)}
+                    id={payload.digest.id}
+                    follow={false}
+                    initialCode={null}
+                    exported={exportLinks(payload)}
+                />
             )}
         </StrictMode>,
     );

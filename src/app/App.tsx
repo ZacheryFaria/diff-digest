@@ -6,6 +6,7 @@ import { Page } from "./components/Page";
 import { Toast } from "./components/Toast";
 import { Toolbar } from "./components/Toolbar";
 import { useActions } from "./state/actions";
+import type { ExportLinks } from "./export-links";
 import { AppContext, type CodeTarget } from "./state/context";
 import { useLive } from "./state/live";
 
@@ -16,13 +17,15 @@ export interface AppProps {
     readonly follow: boolean;
     /** The code pane target of a `#code=` deep link, or null. */
     readonly initialCode: CodeTarget | null;
+    /** A static export (read-only, anchors link to the repo web page), or null on the live page. */
+    readonly exported: ExportLinks | null;
 }
 
 type Dialog = "publish" | "comments" | null;
 
-export function App({ api, id, follow, initialCode }: AppProps): ReactNode {
+export function App({ api, id, follow, initialCode, exported }: AppProps): ReactNode {
     const live = useLive(api, id, follow);
-    const { actions, code, setCode, message, clearMessage } = useActions(api, id, live, initialCode);
+    const { actions, code, setCode, message, clearMessage } = useActions(api, id, live, { initialCode, exported });
     const [dialog, setDialog] = useState<Dialog>(null);
     const close = useCallback(() => {
         setDialog(null);
@@ -31,27 +34,29 @@ export function App({ api, id, follow, initialCode }: AppProps): ReactNode {
         return <p className={live.error === null ? "loading" : "error"}>{live.error ?? "Loading…"}</p>;
     return (
         <AppContext value={actions}>
-            <Toolbar
-                payload={live.payload}
-                status={live.status}
-                offline={live.offline}
-                onPublish={() => {
-                    setDialog("publish");
-                }}
-                onPostComments={() => {
-                    setDialog("comments");
-                }}
-            />
-            <Page
-                payload={live.payload}
-                code={code}
-                onCloseCode={() => {
-                    setCode(null);
-                }}
-            />
-            {dialog === "publish" ? <PublishDialog onClose={close} /> : null}
-            {dialog === "comments" ? <PostCommentsDialog onClose={close} /> : null}
-            <Toast message={message} onDone={clearMessage} />
+            <div className={exported === null ? "live" : "static"}>
+                <Toolbar
+                    payload={live.payload}
+                    status={live.status}
+                    offline={live.offline}
+                    onPublish={() => {
+                        setDialog("publish");
+                    }}
+                    onPostComments={() => {
+                        setDialog("comments");
+                    }}
+                />
+                <Page
+                    payload={live.payload}
+                    code={code}
+                    onCloseCode={() => {
+                        setCode(null);
+                    }}
+                />
+                {dialog === "publish" ? <PublishDialog onClose={close} /> : null}
+                {dialog === "comments" ? <PostCommentsDialog onClose={close} /> : null}
+                <Toast message={message} onDone={clearMessage} />
+            </div>
         </AppContext>
     );
 }

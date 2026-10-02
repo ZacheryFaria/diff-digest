@@ -4,13 +4,14 @@ import type { ApiClient } from "../../lib/client";
 import type { CommentTarget } from "../../lib/schemas";
 import type { ToastMessage } from "../components/Toast";
 import type { AppActions, CodeTarget } from "./context";
+import type { ExportLinks } from "../export-links";
 import type { Live } from "./live";
 
 export function useActions(
     api: ApiClient,
     id: string,
     live: Live,
-    initialCode: CodeTarget | null,
+    page: { readonly initialCode: CodeTarget | null; readonly exported: ExportLinks | null },
 ): {
     readonly actions: AppActions;
     readonly code: CodeTarget | null;
@@ -18,6 +19,7 @@ export function useActions(
     readonly message: ToastMessage | null;
     readonly clearMessage: () => void;
 } {
+    const { initialCode, exported } = page;
     const [code, setCode] = useState<CodeTarget | null>(initialCode);
     const [message, setMessage] = useState<ToastMessage | null>(null);
     const { comments, reloadComments } = live;
@@ -42,8 +44,9 @@ export function useActions(
             toast: (text: string, url?: string) => {
                 setMessage({ text, url, at: Date.now() });
             },
+            exported,
         }),
-        [api, id, comments, reloadComments, code],
+        [api, id, comments, reloadComments, code, exported],
     );
     return { actions, code, setCode, message, clearMessage };
 }

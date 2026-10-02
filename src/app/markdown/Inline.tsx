@@ -6,12 +6,22 @@ import type { RichInline } from "./rich-inline";
 const ANCHOR = /^([\w@#./-]+\.\w+)(?::(\d+)(?:-(\d+))?)?$/u;
 
 function Anchor({ text }: { readonly text: string }): ReactNode {
-    const { openCode, codePath } = useApp();
+    const { openCode, codePath, exported } = useApp();
     const match = ANCHOR.exec(text);
     if (match === null) return <code>{text}</code>;
     const [, path = text, startText = "", endText = ""] = match;
     const from = startText === "" ? undefined : Number(startText);
     const to = endText === "" ? from : Number(endText);
+    if (exported !== null) {
+        const href = exported.linkFor(path, from, to);
+        return href === null ? (
+            <code>{text}</code>
+        ) : (
+            <a className="anchor" href={href} target="_blank" rel="noreferrer">
+                <code>{text}</code>
+            </a>
+        );
+    }
     const open = (): void => {
         openCode({
             path,

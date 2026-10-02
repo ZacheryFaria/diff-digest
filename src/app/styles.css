@@ -79,6 +79,10 @@ button:disabled {
     align-items: center;
     gap: var(--space-8);
 }
+.live,
+.static {
+    display: contents;
+}
 .static .actions {
     display: none;
 }
@@ -622,7 +626,8 @@ a.chip:hover {
     color: var(--fg-muted);
     font-family: var(--font-mono);
 }
-#tree .file > button {
+#tree .file > button,
+#tree .file > .row {
     display: flex;
     align-items: center;
     gap: var(--space-8);
@@ -634,6 +639,7 @@ a.chip:hover {
     color: inherit;
     font: inherit;
     text-align: left;
+    text-decoration: none;
     cursor: pointer;
 }
 .static #tree .file {

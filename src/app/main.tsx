@@ -16,6 +16,7 @@ if (root !== null) {
                     id={id}
                     follow={liveFromSearch(location.search)}
                     initialCode={codeFromHash(location.hash)}
+                    exported={null}
                 />
             )}
         </StrictMode>,
