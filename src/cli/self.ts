@@ -26,7 +26,7 @@ export async function runningApi(home: string): Promise<ApiClient> {
     const info = readServerInfo(home);
     if (info === null || !(await isHealthy(info)))
         throw new DigestError("SERVER_DOWN", "The review server is not running.", { hint: SERVER_DOWN_HINT });
-    return createApiClient(rpcUrl(info.port));
+    return createApiClient(rpcUrl(info.port), { longPoll: true });
 }
 
 /**
