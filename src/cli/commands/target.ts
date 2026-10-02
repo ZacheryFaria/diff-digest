@@ -7,7 +7,7 @@ import { emit, jsonFlag } from "../output";
 import { InitOutputSchema, PathOutputSchema } from "../outputs";
 import { workingCopyFor } from "../ref";
 import { TargetSchema } from "../target";
-import { refPositional, type JsonFlags } from "./shared";
+import { baseFlag, refPositional, type BaseFlags, type JsonFlags } from "./shared";
 
 export const targetCommand = buildCommand({
     docs: { brief: "Show the base, head, and working copy name for a target" },
@@ -34,10 +34,10 @@ export const pathCommand = buildCommand({
 
 export const initCommand = buildCommand({
     docs: { brief: "Create the working copy with its frontmatter, and print its id and path" },
-    parameters: { flags: { json: jsonFlag }, positional: refPositional },
-    async func(this: CliContext, flags: JsonFlags, ref?: string) {
+    parameters: { flags: { json: jsonFlag, base: baseFlag }, positional: refPositional },
+    async func(this: CliContext, flags: BaseFlags, ref?: string) {
         await emit(this.out, { json: flags.json, schema: InitOutputSchema, text: r => r.path }, () =>
-            initWorkingCopy(ref, this),
+            initWorkingCopy(ref, this, flags.base),
         );
     },
 });

@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { DigestError } from "../lib/errors";
 import { parseDigest } from "../lib/frontmatter";
 import { findDigest, readRegistry, registerDigest, registryPath } from "../lib/registry";
-import { findRepoRoot, repoKeys } from "../lib/repo";
+import { findRepoRoot, repoKeys, rev } from "../lib/repo";
 import type { RegistryEntry } from "../lib/schemas-api";
 import { workingCopyPath } from "../lib/store";
 import { resolveTarget, type Target } from "./target";
@@ -32,10 +32,14 @@ export function newDigestId(): string {
     return Array.from(randomBytes(8), b => ID_ALPHABET[b % ID_ALPHABET.length] ?? "0").join("");
 }
 
-/** The repo, the target, and the working copy path for a target reference (the file can be missing). */
-export function workingCopyFor(ref: string | undefined, place: Place): WorkingCopy {
+/**
+ * The repo, the target, and the working copy path for a target reference (the file can be missing).
+ * `base` replaces the target's base (for example the parent of a stacked branch).
+ */
+export function workingCopyFor(ref: string | undefined, place: Place, base?: string): WorkingCopy {
     const root = findRepoRoot(place.cwd);
-    const target = resolveTarget(root, ref);
+    const resolved = resolveTarget(root, ref);
+    const target = base === undefined ? resolved : { ...resolved, base: rev(root, base) };
     return { root, target, mdPath: workingCopyPath(repoKeys(root)[0], target.name, place.home) };
 }
 

@@ -11,8 +11,9 @@ export interface InitResult {
     readonly created: boolean;
 }
 
-export function initWorkingCopy(ref: string | undefined, place: Place): InitResult {
-    const { root, target, mdPath } = workingCopyFor(ref, place);
+/** `base` replaces the target's base in the new frontmatter. A working copy that exists is not changed. */
+export function initWorkingCopy(ref: string | undefined, place: Place, base?: string): InitResult {
+    const { root, target, mdPath } = workingCopyFor(ref, place, base);
     if (existsSync(mdPath)) {
         const { frontmatter } = parseDigest(readFileSync(mdPath, "utf8"));
         registerDigest({ id: frontmatter.id, mdPath, root }, registryPath(place.home));
@@ -23,7 +24,8 @@ export function initWorkingCopy(ref: string | undefined, place: Place): InitResu
         id,
         branch: target.branch,
         base: target.base,
-        head: target.head,
+        // null: the head is the working tree (a checked-out target).
+        head: target.checkedOut ? null : target.head,
         pinned: !target.checkedOut,
         meta: {},
     };

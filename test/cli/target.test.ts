@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync, rmSync } from "node:fs";
+import { z } from "zod";
+import { parseDigest } from "../../src/lib/frontmatter";
 import { git } from "../../src/lib/repo";
 import { resolveDigest } from "../../src/cli/ref";
 import { resolveTarget } from "../../src/cli/target";
@@ -68,11 +70,39 @@ describe("init, path, and the digest reference", () => {
         expect(resolveDigest({ ref: data.path }, { cwd: r.root, home: h }).id).toBe(entry.id);
     });
 
-    test("a target with no working copy is NOT_FOUND with a hint", () => {
+    test("lint for a target with no working copy is NOT_FOUND (exit 4) with a hint", () => {
         const r = setup();
-        const result = runCli(["hunks", "--json"], r.root, home ?? "");
-        expect(result.code).toBe(0);
-        expectDigestError(() => resolveDigest({ ref: "main" }, { cwd: r.root, home: home ?? "" }), "NOT_FOUND");
+        const result = runCli(["lint", "main", "--json"], r.root, home ?? "");
+        expect(result.code).toBe(4);
+        expect(envelope(result)).toMatchObject({
+            ok: false,
+            error: { code: "NOT_FOUND", hint: "Create it with `diff-digest init`." },
+        });
+    });
+
+    test("hunks and init take --base; init writes head null for the working tree and the sha when pinned", () => {
+        const r = setup();
+        const h = home ?? "";
+        const parent = git(r.root, ["rev-parse", "zf/topic"]).trim();
+        git(r.root, ["checkout", "-q", "-b", "zf/child"]);
+        r.write("b.ts", "b\n");
+        r.commit("child");
+        r.write("b.ts", "b2\n");
+        expect(envelope(runCli(["hunks", "--base", "zf/topic", "--json"], r.root, h))).toMatchObject({
+            ok: true,
+            data: { base: parent, head: "worktree", files: [{ path: "b.ts" }] },
+        });
+        const init = envelope(runCli(["init", "--base", "zf/topic", "--json"], r.root, h));
+        if (!init.ok) throw new Error(JSON.stringify(init));
+        const { path } = z.object({ path: z.string() }).parse(init.data);
+        expect(parseDigest(readFileSync(path, "utf8")).frontmatter).toMatchObject({ base: parent, head: null });
+        const pinned = envelope(runCli(["init", "zf/topic", "--json"], r.root, h));
+        if (!pinned.ok) throw new Error(JSON.stringify(pinned));
+        const pinnedPath = z.object({ path: z.string() }).parse(pinned.data).path;
+        expect(parseDigest(readFileSync(pinnedPath, "utf8")).frontmatter).toMatchObject({
+            head: parent,
+            pinned: true,
+        });
     });
 
     test("hunks lists the changed files and the reviewable hunks", () => {

@@ -33,3 +33,14 @@ export const refFlag = {
     brief: "A branch, commit, range, or digest .md path",
     optional: true,
 } as const;
+
+export const baseFlag = {
+    kind: "parsed",
+    parse: String,
+    brief: "The base ref (default: the target's base, for example the merge-base with the default branch)",
+    optional: true,
+} as const;
+
+export interface BaseFlags extends JsonFlags {
+    readonly base?: string;
+}

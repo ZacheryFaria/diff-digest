@@ -8,14 +8,14 @@ import type { CliContext } from "../context";
 import { emit, jsonFlag } from "../output";
 import { HunksOutputSchema, type HunksOutput } from "../outputs";
 import { workingCopyFor } from "../ref";
-import { refPositional, type JsonFlags } from "./shared";
+import { baseFlag, refPositional, type BaseFlags } from "./shared";
 
 export const hunksCommand = buildCommand({
     docs: { brief: "Sort the changed files into classes and list the reviewable hunks" },
-    parameters: { flags: { json: jsonFlag }, positional: refPositional },
-    async func(this: CliContext, flags: JsonFlags, ref?: string) {
+    parameters: { flags: { json: jsonFlag, base: baseFlag }, positional: refPositional },
+    async func(this: CliContext, flags: BaseFlags, ref?: string) {
         await emit(this.out, { json: flags.json, schema: HunksOutputSchema, text: hunksText }, () => {
-            const { root, target } = workingCopyFor(ref, this);
+            const { root, target } = workingCopyFor(ref, this, flags.base);
             const ctx: RepoContext = {
                 root,
                 base: target.base,
