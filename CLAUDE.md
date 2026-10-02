@@ -10,4 +10,4 @@
 - Write documentation in ASD-STE100 Simple Technical English.
 - Commits use conventional commits with the types `minor`, `bugfix`, `major`, and `chore`. Do not add a co-author line.
 - The design is in `docs/superpowers/specs/2026-09-30-typescript-rewrite-design.md`.
-- Do not commit implementation plans. Keep them in `docs/superpowers/plans/`, which git ignores.
+- Do not commit implementation plans or notes. `docs/superpowers/plans/` and `docs/notes/` are git-ignored; keep them local and short-lived.
