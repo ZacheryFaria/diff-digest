@@ -6,6 +6,7 @@ import type { Comment, CommentTarget } from "../../lib/schemas";
 import { Commentable, CommentableRow } from "../components/Commentable";
 import { tableRowLine } from "../comments-map";
 import { Inline } from "./Inline";
+import type { DiagramView } from "../diagram-info";
 import { Mermaid } from "./Mermaid";
 import type { RichInline } from "./rich-inline";
 
@@ -16,7 +17,13 @@ export interface BlockContext {
     readonly commentsFor: (block: ModelBlock) => readonly Comment[];
     /** The rich inline nodes of a text, with the body's reference links. */
     readonly inline: (text: string) => readonly RichInline[];
+    /** The architecture diagram (a card and a click on each node), or null. */
+    readonly diagram: DiagramView | null;
+    /** A block that a diagram click marked: "first" is the one to scroll to. */
+    readonly marked: (fileLine: number) => "first" | "on" | null;
 }
+
+const MARK_CLASS = { first: "node-focus node-focus-first", on: "node-focus" } as const;
 
 function targetOf(block: ModelBlock): CommentTarget {
     const text = block.text.slice(0, 300);
@@ -34,7 +41,15 @@ function OnLine({
 }): ReactNode {
     const block = ctx.blockAt(line + ctx.offset);
     if (block === undefined) return render();
-    return <Commentable target={targetOf(block)} comments={ctx.commentsFor(block)} content={render} />;
+    const mark = ctx.marked(line + ctx.offset);
+    return (
+        <Commentable
+            target={targetOf(block)}
+            comments={ctx.commentsFor(block)}
+            content={render}
+            {...(mark === null ? {} : { className: MARK_CLASS[mark] })}
+        />
+    );
 }
 
 function Item({ item, ctx }: { readonly item: ListItem; readonly ctx: BlockContext }): ReactNode {
@@ -116,7 +131,11 @@ function CodeBlock({
 }): ReactNode {
     const render = (): ReactNode =>
         block.lang === "mermaid" ? (
-            <Mermaid source={block.text} />
+            <Mermaid
+                source={block.text}
+                view={ctx.diagram?.line === block.line + ctx.offset ? ctx.diagram : null}
+                inline={ctx.inline}
+            />
         ) : (
             <pre>
                 <code>{block.text}</code>
