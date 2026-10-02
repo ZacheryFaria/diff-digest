@@ -1,6 +1,7 @@
 // The backend interface (spec §5.3). A backend stores published digests and reviews somewhere.
 import { z } from "zod";
 import type { Anchor } from "../digest";
+import type { OriginRepo } from "../repo";
 import { ShaSchema } from "../schemas";
 
 /** What the envelope stores next to a published body, so `pull` can rebuild the working copy. */
@@ -14,6 +15,11 @@ export const DigestMetaSchema = z
     })
     .readonly();
 export type DigestMeta = z.infer<typeof DigestMetaSchema>;
+
+/** A PR number in a repo. */
+export interface PrRef extends OriginRepo {
+    readonly number: number;
+}
 
 export const PrInfoSchema = z
     .strictObject({
@@ -57,6 +63,8 @@ export interface LocateInput {
     readonly branch: string;
     /** The PR, when the target is a PR or the branch has an open PR. */
     readonly pr: PrInfo | null;
+    /** The PR that the working copy was made from (frontmatter `meta.pr`), when `pr` is not known yet. */
+    readonly prRef?: PrRef | null;
 }
 
 export interface LinkContext {
@@ -81,6 +89,8 @@ export interface Backend {
     readonly type: "github" | "local";
     /** Where the digest goes, or null when this backend cannot take it (for example github without a PR). */
     readonly locate: (input: LocateInput) => Promise<Location | null>;
+    /** The text as the backend stores it (the body in its envelope). It fails when the backend cannot take it. */
+    readonly envelope: (location: Location, body: string, meta: DigestMeta) => Promise<string>;
     readonly publish: (location: Location, body: string, meta: DigestMeta) => Promise<Published>;
     readonly publishReview: (location: Location, review: string, head: string) => Promise<Published>;
     readonly pull: (location: Location) => Promise<Pulled | null>;

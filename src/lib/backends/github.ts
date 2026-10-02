@@ -2,10 +2,10 @@
 import { z } from "zod";
 import { DigestError } from "../errors";
 import { unrenderLinks } from "../render";
-import { DIGEST_MARK, REVIEW_MARK, unwrapMarker, wrapMarker } from "./envelope";
+import { DIGEST_MARK, markerJson, REVIEW_MARK, unwrapMarker, wrapMarker } from "./envelope";
 import { gh, ghJson } from "./gh";
-import { findPrForBranch } from "./pr";
-import type { Backend, BackendDeps, Location, PrInfo } from "./types";
+import { findPrForBranch, prInfo } from "./pr";
+import type { Backend, BackendDeps, DigestMeta, Location, PrInfo, Published } from "./types";
 
 export const COMMENT_LIMIT = 65_536;
 
@@ -33,8 +33,21 @@ export function findComment(deps: BackendDeps, pr: PrInfo, mark: string): GhComm
     const hits = out
         .split("\n")
         .filter(l => l.trim() !== "")
-        .map(l => CommentSchema.parse(JSON.parse(l)));
+        .map(l => parseComment(l));
     return hits.at(-1) ?? null;
+}
+
+function parseComment(line: string): GhComment {
+    let raw: unknown;
+    try {
+        raw = JSON.parse(line);
+    } catch (error) {
+        throw new DigestError("BACKEND_FAILED", "gh returned a comment line that is not JSON.", { cause: error });
+    }
+    const result = CommentSchema.safeParse(raw);
+    if (!result.success)
+        throw new DigestError("BACKEND_FAILED", `gh returned an unexpected comment:\n${z.prettifyError(result.error)}`);
+    return result.data;
 }
 
 function post(deps: BackendDeps, pr: PrInfo, body: string, existing: number | null): GhComment {
@@ -64,9 +77,51 @@ function checkSize(text: string): void {
     }
 }
 
+/** The comment text for a digest: the marker, the body, and a footer with the command to open it. */
+export function githubEnvelope(pr: PrInfo, body: string, meta: DigestMeta): string {
+    return wrapMarker(body, meta, `diff-digest · open locally: \`/diff-digest ${pr.url}\``);
+}
+
+/** gh says the comment is gone or not ours to change. */
+const GONE = /HTTP 40[34]/u;
+
+/** Updates the digest comment, or posts a new one when it cannot be updated (deleted, or not ours). */
+function postDigest(
+    deps: BackendDeps,
+    pr: PrInfo,
+    text: string,
+): { readonly comment: GhComment; readonly updated: boolean; readonly warnings: readonly string[] } {
+    const existing = findComment(deps, pr, DIGEST_MARK);
+    if (existing === null) return { comment: post(deps, pr, text, null), updated: false, warnings: [] };
+    try {
+        return { comment: post(deps, pr, text, existing.id), updated: true, warnings: [] };
+    } catch (error) {
+        if (!(error instanceof DigestError) || !GONE.test(error.message)) throw error;
+        const warning = `Could not update ${existing.html_url}, so a new comment is posted.`;
+        return { comment: post(deps, pr, text, null), updated: false, warnings: [warning] };
+    }
+}
+
+function publishGithub(deps: BackendDeps, name: string, pr: PrInfo, body: string, meta: DigestMeta): Published {
+    const text = githubEnvelope(pr, body, meta);
+    checkSize(text);
+    const { comment, updated, warnings } = postDigest(deps, pr, text);
+    const stale = meta.head !== null && meta.head !== pr.headSha;
+    const staleWarning = `The digest is for ${meta.head?.slice(0, 11) ?? ""}, but the PR head is ${pr.headSha.slice(0, 11)}.`;
+    return { backend: name, ref: comment.html_url, updated, warnings: stale ? [...warnings, staleWarning] : warnings };
+}
+
 /** Runs `run` in a promise, so a thrown error becomes a rejection. */
 function attempt<T>(run: () => T): Promise<T> {
     return Promise.resolve().then(run);
+}
+
+/** Each path segment URL-encoded (a `#` or `?` in a file name stays part of the path). */
+function encodePath(path: string): string {
+    return path
+        .split("/")
+        .map(s => encodeURIComponent(s))
+        .join("/");
 }
 
 export function createGithubBackend(name: string, deps: BackendDeps): Backend {
@@ -75,26 +130,23 @@ export function createGithubBackend(name: string, deps: BackendDeps): Backend {
         type: "github",
         locate: input =>
             attempt(() => {
-                const pr = input.pr ?? findPrForBranch(deps, input.root, input.branch);
+                const ref = input.prRef ?? null;
+                const pr =
+                    input.pr ??
+                    (ref === null ? findPrForBranch(deps, input.root, input.branch) : prInfo(deps, ref, input.root));
                 return pr === null ? null : ({ type: "github", pr } as const);
             }),
-        publish: (location, body, meta) =>
+        envelope: (location, body, meta) =>
             attempt(() => {
-                const pr = prOf(location);
-                const text = wrapMarker(body, meta, `diff-digest · open locally: \`/diff-digest ${pr.url}\``);
+                const text = githubEnvelope(prOf(location), body, meta);
                 checkSize(text);
-                const existing = findComment(deps, pr, DIGEST_MARK);
-                const comment = post(deps, pr, text, existing?.id ?? null);
-                const stale = meta.head !== null && meta.head !== pr.headSha;
-                const warnings = stale
-                    ? [`The digest is for ${meta.head.slice(0, 11)}, but the PR head is ${pr.headSha.slice(0, 11)}.`]
-                    : [];
-                return { backend: name, ref: comment.html_url, updated: existing !== null, warnings };
+                return text;
             }),
+        publish: (location, body, meta) => attempt(() => publishGithub(deps, name, prOf(location), body, meta)),
         publishReview: (location, review, head) =>
             attempt(() => {
                 const pr = prOf(location);
-                const text = `${REVIEW_MARK} ${JSON.stringify({ v: 1, head })} -->\n${review}`;
+                const text = `${REVIEW_MARK} ${markerJson({ v: 1, head })} -->\n${review}`;
                 checkSize(text);
                 return { backend: name, ref: post(deps, pr, text, null).html_url, updated: false, warnings: [] };
             }),
@@ -109,7 +161,7 @@ export function createGithubBackend(name: string, deps: BackendDeps): Backend {
             const path = ctx.resolvePath(anchor.path);
             if (path === null || ctx.pr === null) return null;
             const lines = anchor.end === anchor.start ? `L${anchor.start}` : `L${anchor.start}-L${anchor.end}`;
-            return `https://${ctx.pr.host}/${ctx.pr.owner}/${ctx.pr.repo}/blob/${ctx.head}/${encodeURI(path)}#${lines}`;
+            return `https://${ctx.pr.host}/${ctx.pr.owner}/${ctx.pr.repo}/blob/${ctx.head}/${encodePath(path)}#${lines}`;
         },
     };
 }

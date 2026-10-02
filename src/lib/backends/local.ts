@@ -28,6 +28,12 @@ function fillDeep(value: unknown, values: Readonly<Record<string, string>>): unk
 
 type LocalLocation = Extract<Location, { type: "local" }>;
 
+function localEnvelope(config: LocalConfig, loc: LocalLocation, body: string, meta: DigestMeta): string {
+    const extra = fillDeep(config.frontmatter ?? {}, { repo: loc.repo, branch: meta.branch });
+    const record = typeof extra === "object" && extra !== null ? Object.fromEntries(Object.entries(extra)) : {};
+    return wrapFrontmatter(body, meta, record);
+}
+
 function publishLocal(
     name: string,
     config: LocalConfig,
@@ -37,9 +43,7 @@ function publishLocal(
     meta: DigestMeta,
 ): Published {
     const updated = deps.readFile(loc.digestPath) !== null;
-    const extra = fillDeep(config.frontmatter ?? {}, { repo: loc.repo, branch: meta.branch });
-    const record = typeof extra === "object" && extra !== null ? Object.fromEntries(Object.entries(extra)) : {};
-    deps.writeFile(loc.digestPath, wrapFrontmatter(body, meta, record));
+    deps.writeFile(loc.digestPath, localEnvelope(config, loc, body, meta));
     return { backend: name, ref: loc.digestPath, updated, warnings: [] };
 }
 
@@ -82,6 +86,7 @@ export function createLocalBackend(name: string, config: LocalConfig, deps: Back
                 repo: input.repo,
             });
         },
+        envelope: async (location, body, meta) => localEnvelope(config, await at(location), body, meta),
         publish: async (location, body, meta) => publishLocal(name, config, deps, await at(location), body, meta),
         publishReview: async (location, review) => {
             const loc = await at(location);

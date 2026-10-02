@@ -13,7 +13,7 @@ const OTHER_LINK = /\[(?:[^[\]\n]|\[[^[\]\n]*\])*\](?:\((?:<[^<>\n]*>|[^)\n]*)\)
 const NEEDS_BRACKETS = /[\s()<>]/u;
 
 /** The link destination for a URL: `<url>` (with `<` and `>` encoded) when it has a space or a parenthesis. */
-function destination(url: string): string {
+export function linkDestination(url: string): string {
     if (!NEEDS_BRACKETS.test(url)) return url;
     return `<${url.replaceAll("<", "%3C").replaceAll(">", "%3E")}>`;
 }
@@ -50,7 +50,7 @@ export function renderLinks(body: string, link: AnchorLinker): string {
             (match: string, path: string, start: string, end: string | undefined, at: number) => {
                 if (ranges.some(([from, to]) => at >= from && at < to)) return match;
                 const url = link({ path, start: Number(start), end: Number(end ?? start) });
-                return url === null ? match : `[${match}](${destination(url)})`;
+                return url === null ? match : `[${match}](${linkDestination(url)})`;
             },
         );
     });

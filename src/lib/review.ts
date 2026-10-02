@@ -1,5 +1,6 @@
 // The open user comments as one portable Markdown comment (ported from bin/diff-digest.mjs). Pure.
 // A backend (plan 5) adds its envelope and turns the labels into links.
+import { linkDestination } from "./render";
 import type { Comment } from "./schemas";
 
 /** The URL for a code comment's lines, or null for a plain label. */
@@ -41,7 +42,7 @@ function codeLines(comments: readonly Comment[], link: CodeLinker): string[] {
         const first = target.text.split("\n").find(l => l.trim() !== "") ?? "";
         const side = target.rev === "base" ? "before" : "after";
         out.push(
-            `- ${url === null ? label : `[${label}](${url})`} (${side}) — \`${quote(first.trim())}\``,
+            `- ${url === null ? label : `[${label}](${linkDestination(url)})`} (${side}) — \`${quote(first.trim())}\``,
             indent(comment.body),
             "",
         );

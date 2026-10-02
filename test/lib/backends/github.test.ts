@@ -28,7 +28,7 @@ function ok(stdout: string): { ok: true; stdout: string; stderr: string } {
 }
 
 /** A fake `gh` that keeps the PR's comments in memory. */
-function fakeGh(): {
+function fakeGh(patchFails = false): {
     deps: ReturnType<typeof fakeDeps>["deps"];
     comments: { id: number; html_url: string; body: string }[];
     calls: FakeCall[];
@@ -58,6 +58,7 @@ function fakeGh(): {
             comments.push(c);
             return ok(JSON.stringify(c));
         }
+        if (patchFails) return { ok: false, stdout: "", stderr: "gh: Not Found (HTTP 404)" };
         const id = Number(String(a[3]).split("/").at(-1));
         const existing = comments.find(c => c.id === id);
         if (existing === undefined) return { ok: false, stdout: "", stderr: "404" };
@@ -83,6 +84,15 @@ describe("pr references", () => {
         } finally {
             repo.remove();
         }
+    });
+
+    test("a PR URL can have a tail; the owner and the repo must be names", () => {
+        const pr = { host: "gh.dev", owner: "o", repo: "r.js", number: 12 };
+        for (const tail of ["", "/", "/files", "#issuecomment-1", "?x=1", "/commits/abc"])
+            expect(parsePrRef(`https://gh.dev/o/r.js/pull/12${tail}`, ".")).toEqual(pr);
+        expect(parsePrRef("https://gh.dev/o/r/pull/12x", ".")).toBeNull();
+        expect(parsePrRef("https://gh.dev/o%20x/r/pull/12", ".")).toBeNull();
+        expect(parsePrRef("https://gh.dev/o/r:x/pull/12", ".")).toBeNull();
     });
 
     test("prInfo reads the PR through gh", () => {
@@ -134,5 +144,61 @@ describe("github backend", () => {
             `https://gh.dev/o/r/blob/${HEAD}/src/a.ts#L3-L5`,
         );
         expect(backend.anchorLink({ path: "nope.ts", start: 1, end: 1 }, ctx)).toBeNull();
+    });
+
+    test("a comment from the old tool: pull asks for a new digest, and publish replaces it", async () => {
+        const { deps, comments } = fakeGh();
+        const backend = createGithubBackend("github", deps);
+        const pr = prInfo(deps, { host: "gh.dev", owner: "o", repo: "r", number: 7 }, ".");
+        const loc = { type: "github", pr } as const;
+        const old = `<!-- diff-digest: {"v":1,"base":"${"a".repeat(40)}","head":"${HEAD}","branch":"x"} -->`;
+        comments.push({
+            id: 1,
+            html_url: "https://gh.dev/o/r/pull/7#c1",
+            body: `${old}\n# Old\n\n<sub>diff-digest · open locally: <code>x</code></sub>\n`,
+        });
+        const failure: unknown = await backend.pull(loc).catch((error: unknown) => error);
+        expect(failure).toMatchObject({
+            code: "BAD_INPUT",
+            hint: "This digest was made by the old diff-digest. Run `diff-digest init` and `publish` to replace it.",
+        });
+        expect(String(failure)).not.toContain("✖");
+        expect(await backend.publish(loc, BODY, META)).toMatchObject({ updated: true });
+        expect(comments).toHaveLength(1);
+        expect(comments[0]?.body).toContain('"id":"abcd1234"');
+    });
+
+    test("a comment that cannot be updated is posted again, with a warning", async () => {
+        const { deps, comments } = fakeGh(true);
+        const backend = createGithubBackend("github", deps);
+        const loc = {
+            type: "github",
+            pr: prInfo(deps, { host: "gh.dev", owner: "o", repo: "r", number: 7 }, "."),
+        } as const;
+        comments.push({ id: 1, html_url: "https://gh.dev/o/r/pull/7#c1", body: "<!-- diff-digest: {} -->" });
+        const published = await backend.publish(loc, BODY, META);
+        expect(published).toMatchObject({ updated: false, ref: "https://gh.dev/o/r/pull/7#c2" });
+        expect(published.warnings).toHaveLength(1);
+        expect(comments).toHaveLength(2);
+    });
+
+    test("a comment line from gh that is not a comment is BACKEND_FAILED", async () => {
+        const { deps } = fakeDeps(call => ok(call.args[1] === "--paginate" ? '{"id":"x"}' : JSON.stringify(PULL)));
+        const backend = createGithubBackend("github", deps);
+        const loc = {
+            type: "github",
+            pr: prInfo(deps, { host: "gh.dev", owner: "o", repo: "r", number: 7 }, "."),
+        } as const;
+        const failure: unknown = await backend.pull(loc).catch((error: unknown) => error);
+        expect(failure).toMatchObject({ code: "BACKEND_FAILED" });
+    });
+
+    test("anchor links encode each path segment", () => {
+        const { deps } = fakeGh();
+        const pr = prInfo(deps, { host: "gh.dev", owner: "o", repo: "r", number: 7 }, ".");
+        const ctx: LinkContext = { root: ".", head: HEAD, resolvePath: () => "src/a#b c.ts", pr };
+        expect(createGithubBackend("github", deps).anchorLink({ path: "a.ts", start: 1, end: 1 }, ctx)).toBe(
+            `https://gh.dev/o/r/blob/${HEAD}/src/a%23b%20c.ts#L1`,
+        );
     });
 });

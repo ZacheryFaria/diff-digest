@@ -59,4 +59,9 @@ describe("reviewMarkdown", () => {
         );
         expect(reviewMarkdown([])).toContain("_No open comments._");
     });
+
+    test("a link URL with a space or a parenthesis is written as <url>", () => {
+        const md = reviewMarkdown(COMMENTS, () => "file:///my repo/a (1).ts");
+        expect(md).toContain("[`lib/a.ts:4-6`](<file:///my repo/a (1).ts>)");
+    });
 });

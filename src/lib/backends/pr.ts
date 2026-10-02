@@ -4,22 +4,28 @@ import { DigestError } from "../errors";
 import { hasCommit, originRepo, runGit, short, type OriginRepo } from "../repo";
 import { ShaSchema } from "../schemas";
 import { ghJson } from "./gh";
-import type { BackendDeps, PrInfo } from "./types";
+import type { BackendDeps, PrInfo, PrRef } from "./types";
 
-export interface PrRef extends OriginRepo {
-    readonly number: number;
-}
+export type { PrRef } from "./types";
 
-const PR_URL = /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/u;
+/** A PR URL. A tail (`/files`, `#issuecomment-1`, `?x=1`) is allowed. */
+const PR_URL = /^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:[/?#].*)?$/u;
 const PR_NUMBER = /^#?(\d+)$/u;
+const NAME = /^[\w.-]+$/u;
+
+/** A PR URL, or null. The owner and the repo must be GitHub names. */
+export function parsePrUrl(arg: string): PrRef | null {
+    const url = PR_URL.exec(arg);
+    if (url === null) return null;
+    const [, host = "", owner = "", repo = "", n = "0"] = url;
+    if (!NAME.test(owner) || !NAME.test(repo)) return null;
+    return { host, owner, repo, number: Number(n) };
+}
 
 /** A PR URL, or `#123` / `123` for the origin repo. Null when `arg` is not a PR reference. */
 export function parsePrRef(arg: string, root: string): PrRef | null {
-    const url = PR_URL.exec(arg);
-    if (url !== null) {
-        const [, host = "", owner = "", repo = "", n = "0"] = url;
-        return { host, owner, repo, number: Number(n) };
-    }
+    const url = parsePrUrl(arg);
+    if (url !== null) return url;
     const num = PR_NUMBER.exec(arg);
     if (num === null) return null;
     const origin = originRepo(root);
@@ -69,7 +75,20 @@ export function findPrForBranch(deps: BackendDeps, root: string, branch: string)
         {
             host: origin.host,
             cwd: root,
-            args: ["pr", "list", "--head", branch, "--state", "open", "--json", "number", "--limit", "1"],
+            args: [
+                "pr",
+                "list",
+                "--repo",
+                `${origin.host}/${origin.owner}/${origin.repo}`,
+                "--head",
+                branch,
+                "--state",
+                "open",
+                "--json",
+                "number",
+                "--limit",
+                "1",
+            ],
         },
         PrListSchema,
     );
@@ -77,12 +96,20 @@ export function findPrForBranch(deps: BackendDeps, root: string, branch: string)
     return first === undefined ? null : prInfo(deps, { ...origin, number: first.number }, root);
 }
 
+/** `origin` when the PR is in the origin repo, else the PR repo's URL. */
+function remoteFor(root: string, pr: OriginRepo): string {
+    const origin = originRepo(root);
+    const same = origin?.host === pr.host && origin.owner === pr.owner && origin.repo === pr.repo;
+    return same ? "origin" : `https://${pr.host}/${pr.owner}/${pr.repo}.git`;
+}
+
 /** Fetches the PR head and base commits when the clone does not have them. */
 export function ensurePrCommits(root: string, pr: PrInfo): void {
-    if (!hasCommit(root, pr.headSha)) runGit(root, ["fetch", "-q", "origin", `pull/${pr.number}/head`]);
-    if (!hasCommit(root, pr.baseSha)) runGit(root, ["fetch", "-q", "origin", pr.baseRef]);
+    const remote = remoteFor(root, pr);
+    if (!hasCommit(root, pr.headSha)) runGit(root, ["fetch", "-q", remote, `pull/${pr.number}/head`]);
+    if (!hasCommit(root, pr.baseSha)) runGit(root, ["fetch", "-q", remote, pr.baseRef]);
     for (const sha of [pr.headSha, pr.baseSha]) {
         if (!hasCommit(root, sha))
-            throw new DigestError("BACKEND_FAILED", `Could not fetch commit ${short(sha)} from origin.`);
+            throw new DigestError("BACKEND_FAILED", `Could not fetch commit ${short(sha)} from ${remote}.`);
     }
 }

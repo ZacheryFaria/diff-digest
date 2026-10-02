@@ -23,6 +23,15 @@ describe("envelopes", () => {
         expectDigestError(() => unwrapMarker("no marker", "c"), "BAD_INPUT");
         expectDigestError(() => unwrapMarker('<!-- diff-digest: {"v":2} -->\nx', "c"), "BAD_INPUT");
     });
+
+    test("a branch with --> or < in it cannot close the marker comment", () => {
+        const meta = { ...META, branch: "a-->b<c" };
+        const text = wrapMarker(BODY, meta, FOOTER);
+        const line = text.split("\n")[0] ?? "";
+        expect(line.indexOf("-->")).toBe(line.length - 3);
+        expect(line).not.toContain("<c");
+        expect(unwrapMarker(text, "c")).toEqual({ body: BODY, meta });
+    });
 });
 
 describe("local backend", () => {

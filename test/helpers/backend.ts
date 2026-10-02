@@ -6,7 +6,10 @@ export interface FakeCall {
     readonly input: string | undefined;
 }
 
-/** In-memory files and a scripted `exec`: `answer` gets each call and returns the result. */
+/**
+ * In-memory files and a scripted `exec`: `answer` gets each call and returns the result.
+ * A gh call must have a GH_HOST and a cwd, as the real gh needs them.
+ */
 export function fakeDeps(answer: (call: FakeCall) => ExecResult = () => ({ ok: true, stdout: "", stderr: "" })): {
     readonly deps: BackendDeps;
     readonly files: Map<string, string>;
@@ -16,6 +19,8 @@ export function fakeDeps(answer: (call: FakeCall) => ExecResult = () => ({ ok: t
     const calls: FakeCall[] = [];
     const deps: BackendDeps = {
         exec: (command, args, options) => {
+            if (command === "gh" && (options.env?.["GH_HOST"] === undefined || options.cwd === ""))
+                throw new Error(`gh ${args.join(" ")}: no GH_HOST or no cwd`);
             const call = { command, args, input: options.input };
             calls.push(call);
             return answer(call);
