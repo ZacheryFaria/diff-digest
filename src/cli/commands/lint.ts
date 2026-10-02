@@ -14,17 +14,20 @@ export const lintCommand = buildCommand({
     docs: { brief: "Check the digest against the format rules (exit 5 on an error)" },
     parameters: { flags: { json: jsonFlag, id: idFlag }, positional: refPositional },
     async func(this: CliContext, flags: RefFlags, ref?: string) {
-        const entry = (): ReturnType<typeof resolveDigest> => resolveDigest({ ref, id: flags.id }, this);
+        let mdPath = "";
         await emit(
             this.out,
             {
                 json: flags.json,
                 schema: LintOutputSchema,
-                text: issues =>
-                    issues.length === 0 ? "No lint issues." : issueLines(entry().mdPath, issues).join("\n"),
+                text: issues => (issues.length === 0 ? "No lint issues." : issueLines(mdPath, issues).join("\n")),
                 exitCode: lintExitCode,
             },
-            () => checkDigest(openDigest(entry(), this.home)).issues,
+            () => {
+                const entry = resolveDigest({ ref, id: flags.id }, this);
+                mdPath = entry.mdPath;
+                return checkDigest(openDigest(entry, this.home)).issues;
+            },
         );
     },
 });
@@ -33,16 +36,20 @@ export const checkCommand = buildCommand({
     docs: { brief: "lint + anchor coverage (exit 5 on a lint error, 6 on a coverage gap)" },
     parameters: { flags: { json: jsonFlag, id: idFlag }, positional: refPositional },
     async func(this: CliContext, flags: RefFlags, ref?: string) {
-        const entry = resolveDigest({ ref, id: flags.id }, this);
+        let mdPath = "";
         await emit(
             this.out,
             {
                 json: flags.json,
                 schema: CheckResultSchema,
-                text: r => checkText(entry.mdPath, r),
+                text: r => checkText(mdPath, r),
                 exitCode: checkExitCode,
             },
-            () => checkDigest(openDigest(entry, this.home)),
+            () => {
+                const entry = resolveDigest({ ref, id: flags.id }, this);
+                mdPath = entry.mdPath;
+                return checkDigest(openDigest(entry, this.home));
+            },
         );
     },
 });

@@ -64,6 +64,13 @@ describe("comment commands", () => {
         expect(missing.code).toBe(4);
     });
 
+    test("comments --status rejects a value that is not a status (BAD_INPUT, exit 3)", () => {
+        const s = setup();
+        const result = runCli(["comments", "--status", "open,bogus", "--json"], s.cwd, s.home);
+        expect(envelope(result)).toMatchObject({ ok: false, error: { code: "BAD_INPUT" } });
+        expect(result.code).toBe(3);
+    });
+
     test("mark writes the repo's generated list", () => {
         const s = setup();
         expect(runCli(["mark", "a.ts"], s.cwd, s.home).stdout).toBe("marked a.ts\n");

@@ -1,5 +1,6 @@
 // `comments`, `resolve`, `note`, `mark`: typed writes to the comments and the config (in-process).
 import { buildCommand } from "@stricli/core";
+import { DigestError } from "../../lib/errors";
 import { reviewMarkdown } from "../../lib/review";
 import { CommentSchema, CommentsFileSchema, type Comment } from "../../lib/schemas";
 import { localApi } from "../api";
@@ -16,8 +17,25 @@ interface CommentsFlags extends RefFlags {
     readonly markdown: boolean;
 }
 
+function isStatus(value: string): value is Comment["status"] {
+    return STATUSES.some(s => s === value);
+}
+
+/** The `--status` list. Each value must be a comment status. */
+function parseStatuses(text: string): ReadonlySet<Comment["status"]> {
+    const values = text.split(",").map(s => s.trim());
+    const bad = values.filter(v => !isStatus(v));
+    if (bad.length > 0)
+        throw new DigestError("BAD_INPUT", `Not a comment status: ${bad.join(", ")}`, {
+            hint: `Use a comma list of ${STATUSES.join(", ")}.`,
+        });
+    return new Set(values.filter(v => isStatus(v)));
+}
+
 function commentLine(c: Comment): string {
-    const where = c.target.kind === "code" ? `${c.target.path}:${c.target.line}` : `“${c.target.text.slice(0, 60)}”`;
+    const t = c.target;
+    const lines = t.kind === "code" && t.endLine !== undefined && t.endLine !== t.line ? `-${t.endLine}` : "";
+    const where = t.kind === "code" ? `${t.path}:${t.line}${lines}` : `“${t.text.slice(0, 60)}”`;
     return `${c.id}  ${c.status.padEnd(8)} ${c.author.padEnd(5)} ${where}\n    ${c.body.replaceAll("\n", "\n    ")}`;
 }
 
@@ -37,23 +55,25 @@ export const commentsCommand = buildCommand({
         positional: refPositional,
     },
     async func(this: CliContext, flags: CommentsFlags, ref?: string) {
-        const entry = resolveDigest({ ref, id: flags.id }, this);
-        const all = await localApi(this.home).comments.list({ id: entry.id });
+        const list = (): Promise<readonly Comment[]> =>
+            localApi(this.home).comments.list({ id: resolveDigest({ ref, id: flags.id }, this).id });
         if (flags.markdown) {
-            await emit(this.out, { json: flags.json, schema: TextOutputSchema, text: t => t }, () =>
-                reviewMarkdown(all),
+            await emit(this.out, { json: flags.json, schema: TextOutputSchema, text: t => t }, async () =>
+                reviewMarkdown(await list()),
             );
             return;
         }
-        const wanted = new Set(flags.status.split(",").map(s => s.trim()));
         await emit(
             this.out,
             {
                 json: flags.json,
                 schema: CommentsFileSchema,
-                text: list => (list.length === 0 ? "No comments." : list.map(c => commentLine(c)).join("\n")),
+                text: all => (all.length === 0 ? "No comments." : all.map(c => commentLine(c)).join("\n")),
             },
-            () => all.filter(c => wanted.has(c.status)),
+            async () => {
+                const wanted = parseStatuses(flags.status);
+                return (await list()).filter(c => wanted.has(c.status));
+            },
         );
     },
 });
