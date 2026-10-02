@@ -34,21 +34,37 @@ export interface Installed {
     readonly removedOldLib: boolean;
 }
 
-const InstallRecordSchema = z.object({ paths: z.array(z.string()).readonly() }).readonly();
+const InstallRecordSchema = z
+    .object({
+        paths: z.array(z.string()).readonly(),
+        /** The sha256 of the copied binary, so a foreign file at the same path is not "ours". */
+        binarySha256: z.string().optional(),
+    })
+    .readonly();
+type InstallRecord = z.infer<typeof InstallRecordSchema>;
 
-/** The paths that the last install wrote, in `<home>/install.json`. */
-function recorded(home: string): readonly string[] {
+function sha256(path: string): string {
+    return new Bun.CryptoHasher("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/** What the last install wrote, from `<home>/install.json`. */
+function recorded(home: string): InstallRecord {
     try {
         const parsed: unknown = JSON.parse(readFileSync(join(home, "install.json"), "utf8"));
-        return InstallRecordSchema.parse(parsed).paths;
+        return InstallRecordSchema.parse(parsed);
     } catch {
-        return [];
+        return { paths: [] };
     }
 }
 
-/** True when this installer made `path`: a recorded path, a folder with the marker, or the old launcher script. */
+/**
+ * True when this installer made `path`: a folder with the marker, the recorded binary (same path and the
+ * same sha256), or the old launcher script.
+ */
 function ours(path: string, home: string): boolean {
-    if (recorded(home).includes(path) || existsSync(join(path, MARKER))) return true;
+    if (existsSync(join(path, MARKER))) return true;
+    const record = recorded(home);
+    if (record.paths.includes(path) && statSync(path).isFile() && record.binarySha256 === sha256(path)) return true;
     try {
         return statSync(path).size < 4096 && readFileSync(path, "utf8").includes(MARKER);
     } catch {
@@ -84,13 +100,16 @@ export function install(options: InstallOptions): Installed {
     const removedOldLib = existsSync(join(lib, MARKER));
     if (removedOldLib) rmSync(lib, { recursive: true, force: true });
     mkdirSync(options.home, { recursive: true });
-    writeFileSync(join(options.home, "install.json"), `${JSON.stringify({ paths: [command, skill] }, null, 2)}\n`);
+    const record: InstallRecord = { paths: [command, skill], binarySha256: sha256(command) };
+    writeFileSync(join(options.home, "install.json"), `${JSON.stringify(record, null, 2)}\n`);
     return { command, skill, removedOldLib };
 }
 
+/** Removes the paths of the last install (also from another --bin-dir), the given paths, and the old lib/. */
 export function uninstall(options: InstallOptions): readonly string[] {
     const { command, skill, lib } = paths(options);
-    const targets = [command, skill, ...(existsSync(join(lib, MARKER)) ? [lib] : [])].filter(p => existsSync(p));
+    const named = [...recorded(options.home).paths, command, skill, ...(existsSync(join(lib, MARKER)) ? [lib] : [])];
+    const targets = [...new Set(named)].filter(p => existsSync(p));
     for (const p of targets) guard(p, options);
     for (const p of [...targets, join(options.home, "install.json")]) rmSync(p, { recursive: true, force: true });
     return targets;

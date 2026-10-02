@@ -12,7 +12,9 @@ export function exportLinks(payload: StaticPayload): ExportLinks {
     return {
         linkFor: (path, start, end) => {
             const file = files.find(f => f.path === path || f.path.endsWith(`/${path}`));
-            if (repoUrl === null || head === null || file === undefined) return null;
+            // A deleted or an untracked file is not in the head commit.
+            if (repoUrl === null || head === null || file === undefined || file.status === "D" || file.untracked)
+                return null;
             const lines = start === undefined ? "" : `#L${start}-L${end ?? start}`;
             return `${repoUrl}/blob/${head}/${file.path}${lines}`;
         },

@@ -24,13 +24,10 @@ export async function path(this: CliContext, flags: JsonFlags, ref?: string): Pr
 }
 
 export async function init(this: CliContext, flags: BaseFlags, ref?: string): Promise<void> {
-    await emit(
-        this.out,
-        {
-            json: flags.json,
-            schema: InitOutputSchema,
-            text: r => [r.path, ...r.warnings.map(w => `warning: ${w}`)].join("\n"),
-        },
-        () => initWorkingCopy(ref, this, flags.base),
-    );
+    await emit(this.out, { json: flags.json, schema: InitOutputSchema, text: r => r.path }, () => {
+        const result = initWorkingCopy(ref, this, flags.base);
+        // stdout has only the path, so `$(diff-digest init)` is the path. JSON keeps the warnings.
+        if (!flags.json) for (const w of result.warnings) this.out.printError(`warning: ${w}`);
+        return result;
+    });
 }

@@ -15,12 +15,30 @@ export function webUrl(origin: OriginRepo | null): string | null {
     return origin === null ? null : `https://${origin.host}/${origin.owner}/${origin.repo}`;
 }
 
+/**
+ * True when an inline script cannot hold the HTML parser in its "double-escaped" state: after `<!--`, a
+ * `<script` before the next `-->` makes the real `</script>` not end the element.
+ */
+export function inlineScriptSafe(js: string): boolean {
+    const lower = js.toLowerCase();
+    let at = lower.indexOf("<!--");
+    while (at !== -1) {
+        const end = lower.indexOf("-->", at + 4);
+        const open = /<script[\s/>]/u.exec(lower.slice(at + 4, end === -1 ? undefined : end));
+        if (open !== null) return false;
+        at = end === -1 ? -1 : lower.indexOf("<!--", end + 3);
+    }
+    return true;
+}
+
 /** `<` in the JSON and `</script` in the script cannot end their script element early. */
 export function exportHtml(payload: StaticPayload, bundle: ExportBundle): string {
     const title = (buildModel(payload.digest.body).title?.text ?? "Diff digest").replaceAll("`", "");
     const json = JSON.stringify(payload).replaceAll("<", "\\u003c");
-    const js = bundle.js.replaceAll("</script", "<\\/script");
-    const css = bundle.css.replaceAll("</style", "<\\/style");
+    const js = bundle.js.replaceAll(/<\/(script)/giu, "<\\/$1");
+    const css = bundle.css.replaceAll(/<\/(style)/giu, "<\\/$1");
+    if (!inlineScriptSafe(js))
+        throw new Error("The export script has `<!--` and then `<script`, so it cannot be inline.");
     return `<!doctype html>
 <html lang="en">
 <head>

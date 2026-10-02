@@ -103,6 +103,9 @@ describe("init, path, and the digest reference", () => {
             ok: true,
             data: { created: false, warnings: [expect.stringContaining("keeps its base")] },
         });
+        const text = runCli(["init", "--base", "main"], r.root, h);
+        expect(text.stdout.trim().split("\n")).toHaveLength(1);
+        expect(text.stderr).toContain("warning: The working copy exists");
         const pinned = envelope(runCli(["init", "zf/topic", "--json"], r.root, h));
         if (!pinned.ok) throw new Error(JSON.stringify(pinned));
         const pinnedPath = z.object({ path: z.string() }).parse(pinned.data).path;

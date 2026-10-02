@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { exportHtml, webUrl } from "../../src/cli/export-html";
+import { EXPORT_BUNDLE } from "../../src/cli/export-assets";
+import { exportHtml, inlineScriptSafe, webUrl } from "../../src/cli/export-html";
 import { ExportOutputSchema } from "../../src/cli/outputs";
 import { DigestPayloadSchema, StaticPayloadSchema } from "../../src/lib/schemas-api";
 import { envelope, runCli } from "../helpers/cli";
+import { git } from "../../src/lib/repo";
 import { makeRepo, tempDir, type TestRepo } from "../helpers/repo";
 
 let repo: TestRepo | undefined;
@@ -40,6 +42,17 @@ describe("export", () => {
         expect(StaticPayloadSchema.parse(payloadOf(html)).digest.body).toBe(DIGEST.body);
     });
 
+    test("an inline script must not hold the parser after <!-- and <script, in any case", () => {
+        expect(inlineScriptSafe('a = "<!-- x --> <script>"')).toBe(true);
+        expect(inlineScriptSafe('a = "<!-- <SCRIPT>"')).toBe(false);
+        expect(inlineScriptSafe('a = "<!-- x"; b = "<script "; c = "-->"')).toBe(false);
+        expect(inlineScriptSafe('a = "<scripts>"; b = "<!--"')).toBe(true);
+        expect(inlineScriptSafe(EXPORT_BUNDLE.js.replaceAll(/<\/(script)/giu, "<\\/$1"))).toBe(true);
+        expect(
+            exportHtml({ digest: DIGEST, comments: [], repoUrl: null }, { js: "a = '</SCRIPT>'", css: "" }),
+        ).toContain("a = '<\\/SCRIPT>'");
+    });
+
     test("webUrl is the origin's web page", () => {
         expect(webUrl({ host: "github.com", owner: "o", repo: "r" })).toBe("https://github.com/o/r");
         expect(webUrl(null)).toBeNull();
@@ -50,6 +63,7 @@ describe("export", () => {
         home = tempDir("dd-home-");
         repo.write("a.ts", "1\n");
         repo.commit("init");
+        git(repo.root, ["remote", "add", "origin", "https://zf:ghp_SECRET@github.com/acme/widget.git"]);
         runCli(["init"], repo.root, home);
         const out = join(home, "digest.html");
         const result = envelope(runCli(["export", "--out", out, "--json"], repo.root, home));
@@ -57,5 +71,7 @@ describe("export", () => {
         const html = readFileSync(out, "utf8");
         expect(html).not.toMatch(/<(script|link|img)[^>]+(src|href)="https?:/u);
         expect(StaticPayloadSchema.parse(payloadOf(html)).comments).toEqual([]);
+        expect(html).not.toContain("ghp_SECRET");
+        expect(StaticPayloadSchema.parse(payloadOf(html)).repoUrl).toBe("https://github.com/acme/widget");
     }, 30_000);
 });

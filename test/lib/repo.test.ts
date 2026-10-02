@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { EMPTY_TREE, git, repoKeys, resolveBase, slug, tryRev } from "../../src/lib/repo";
+import { EMPTY_TREE, git, parseOrigin, repoKeys, resolveBase, slug, tryRev } from "../../src/lib/repo";
 import { expectDigestError, makeRepo, type TestRepo } from "../helpers/repo";
 
 let repo: TestRepo | undefined;
@@ -41,6 +41,25 @@ describe("repo", () => {
         repo.remove();
         repo = undefined;
         expectDigestError(() => git(root, ["status"]), "NOT_FOUND");
+    });
+
+    test("parseOrigin keeps only the host and the path: no user, token, or port", () => {
+        const widget = { host: "github.com", owner: "acme", repo: "widget" };
+        expect(parseOrigin("https://zf:ghp_SECRET@github.com/acme/widget.git")).toEqual(widget);
+        expect(parseOrigin("git@github.com:acme/widget.git")).toEqual(widget);
+        expect(parseOrigin("https://github.com/acme/widget/")).toEqual(widget);
+        expect(parseOrigin("ssh://git@ghe.example.com:2222/acme/widget.git")).toEqual({
+            host: "ghe.example.com",
+            owner: "acme",
+            repo: "widget",
+        });
+        expect(parseOrigin("https://gitlab.com/group/sub/repo.git")).toEqual({
+            host: "gitlab.com",
+            owner: "group",
+            repo: "sub/repo",
+        });
+        expect(parseOrigin("/srv/git/widget.git")).toBeNull();
+        expect(parseOrigin("https://github.com/acme")).toBeNull();
     });
 
     test("slug replaces characters that are not safe in a file name", () => {

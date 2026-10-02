@@ -97,7 +97,11 @@ export const reviewRoutes = {
         loader: async () => (await import("../commands/publish")).pull,
     }),
     export: buildCommand({
-        docs: { brief: "Write one static HTML file of the digest; its anchors link to the repo web page" },
+        docs: {
+            brief: "Write one static HTML file of the digest; its anchors link to the repo web page",
+            fullDescription:
+                "Anchors and files link to the head commit on the origin's web page. For a working tree, that is the last commit, so lines of uncommitted changes can differ. Deleted and untracked files get no link.",
+        },
         parameters: {
             flags: {
                 json: jsonFlag,

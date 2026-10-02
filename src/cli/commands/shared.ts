@@ -13,7 +13,7 @@ export const refPositional = {
     kind: "tuple",
     parameters: [
         {
-            brief: "A branch, commit, range, or digest .md path (default: the current branch)",
+            brief: "A branch, commit, range, PR (#123 or a URL), or digest .md path (default: the current branch)",
             parse: String,
             placeholder: "ref",
             optional: true,
@@ -39,7 +39,7 @@ export interface RefFlags extends JsonFlags {
 export const refFlag = {
     kind: "parsed",
     parse: String,
-    brief: "A branch, commit, range, or digest .md path",
+    brief: "A branch, commit, range, PR (#123 or a URL), or digest .md path",
     optional: true,
 } as const;
 

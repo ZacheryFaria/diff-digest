@@ -99,16 +99,39 @@ export function resolveBase(root: string, ref?: string, head = "HEAD"): Sha {
     throw new DigestError("NOT_FOUND", "No base found.", { hint: "Give a base ref." });
 }
 
-const ORIGIN = /^(?:ssh:\/\/)?(?:git@|https?:\/\/)([^:/]+)[:/]([^/]+)\/(.+?)(?:\.git)?\/?$/u;
+/** The scp form: `[user@]host:owner/repo[.git]`. */
+const SCP_ORIGIN = /^(?:[^@/]+@)?([^:/]+):(?!\/)(.+)$/u;
+
+function ownerAndRepo(host: string, path: string): OriginRepo | null {
+    const [owner, ...rest] = path
+        .replace(/^\/+/u, "")
+        .replace(/\/+$/u, "")
+        .replace(/\.git$/u, "")
+        .split("/");
+    const repo = rest.join("/");
+    return owner === undefined || owner === "" || repo === "" ? null : { host, owner, repo };
+}
+
+/**
+ * The host, owner, and repo of a remote URL. A URL form (`https:`, `ssh:`, `git:`) keeps only the host
+ * name and the path, so a user name, a token, or a port never goes into a link.
+ */
+export function parseOrigin(url: string): OriginRepo | null {
+    if (url.includes("://")) {
+        if (!URL.canParse(url)) return null;
+        const parsed = new URL(url);
+        return parsed.hostname === "" ? null : ownerAndRepo(parsed.hostname, decodeURIComponent(parsed.pathname));
+    }
+    const scp = SCP_ORIGIN.exec(url);
+    if (scp === null) return null;
+    const [, host = "", path = ""] = scp;
+    return ownerAndRepo(host, path);
+}
 
 export function originRepo(root: string): OriginRepo | null {
     const result = runGit(root, ["remote", "get-url", "origin"]);
     if (!result.ok) return null;
-    const match = ORIGIN.exec(result.stdout.trim());
-    if (match === null) return null;
-    const [, host, owner, repo] = match;
-    if (host === undefined || owner === undefined || repo === undefined) return null;
-    return { host, owner, repo };
+    return parseOrigin(result.stdout.trim());
 }
 
 /** The keys that a repo entry in the config can use: the repo name, then host/owner/name. */

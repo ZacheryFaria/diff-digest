@@ -102,6 +102,13 @@ describe("server commands", () => {
         expect(error).toMatchObject({ code: "SERVER_DOWN", hint: "Run `diff-digest serve`." });
     });
 
+    test("server logs --json -f is BAD_INPUT", () => {
+        const s = setup();
+        const result = runCli(["server", "logs", "--json", "-f"], s.cwd, s.home);
+        expect(envelope(result)).toMatchObject({ ok: false, error: { code: "BAD_INPUT" } });
+        expect(result.code).toBe(3);
+    });
+
     test("wait with no server is SERVER_DOWN (exit 11)", () => {
         const s = setup();
         const result = runCli(["wait", "--json"], s.cwd, s.home);

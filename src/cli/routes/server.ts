@@ -41,7 +41,7 @@ export const serverRoutes = buildRouteMap({
                 },
                 aliases: { f: "follow" },
             },
-            loader: async () => (await import("../commands/server")).serverLogs,
+            loader: async () => (await import("../commands/logs")).serverLogs,
         }),
     },
 });

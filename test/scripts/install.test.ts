@@ -62,4 +62,18 @@ describe("setup", () => {
         expect(existsSync(done.command) || existsSync(done.skill)).toBe(false);
         expect(existsSync(join(o.home, "config.json")) && existsSync(join(o.home, "store"))).toBe(true);
     });
+
+    test("knows its binary by the record and the hash: a foreign file at that path is not replaced", () => {
+        const o = setup();
+        const done = install(o);
+        writeFileSync(done.command, "someone else's");
+        expect(() => install(o)).toThrow(/was not installed by diff-digest/u);
+    });
+
+    test("uninstall also removes a binary that an earlier install put in another --bin-dir", () => {
+        const o = setup();
+        const other = install({ ...o, binDir: join(root ?? "", "other-bin") });
+        expect(uninstall(o)).toContain(other.command);
+        expect(existsSync(other.command)).toBe(false);
+    });
 });

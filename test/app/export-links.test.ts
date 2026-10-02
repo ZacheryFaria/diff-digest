@@ -21,6 +21,18 @@ describe("exportLinks", () => {
         expect(links.linkFor("b.ts", 1)).toBeNull();
     });
 
+    test("gives no link for a deleted or an untracked file", () => {
+        const [file] = digest.files;
+        if (file === undefined) throw new Error("file");
+        const files = [
+            { ...file, path: "src/gone.ts", oldPath: "src/gone.ts", status: "D" as const },
+            { ...file, path: "src/new.ts", oldPath: "src/new.ts", status: "A" as const, untracked: true },
+        ];
+        const links = exportLinks({ digest: { ...digest, files }, comments: [], repoUrl: "https://x/o/r" });
+        expect(links.linkFor("gone.ts")).toBeNull();
+        expect(links.linkFor("new.ts")).toBeNull();
+    });
+
     test("gives no link with no repo URL or no head commit", () => {
         expect(exportLinks({ digest, comments: [], repoUrl: null }).linkFor("a.ts")).toBeNull();
         const noHead = { ...digest, head: null };
