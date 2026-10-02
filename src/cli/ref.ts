@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DigestError } from "../lib/errors";
 import { parseDigest } from "../lib/frontmatter";
-import { findDigest, registerDigest, registryPath } from "../lib/registry";
+import { findDigest, readRegistry, registerDigest, registryPath } from "../lib/registry";
 import { findRepoRoot, repoKeys } from "../lib/repo";
 import type { RegistryEntry } from "../lib/schemas-api";
 import { workingCopyPath } from "../lib/store";
@@ -39,18 +39,28 @@ export function workingCopyFor(ref: string | undefined, place: Place): WorkingCo
     return { root, target, mdPath: workingCopyPath(repoKeys(root)[0], target.name, place.home) };
 }
 
-function register(mdPath: string, root: string, home: string): RegistryEntry {
+/**
+ * The registry entry for a working copy. An entry with the same id and path is used as it is: a
+ * read-only command does not change it. Only a new or moved digest is registered, with `root()`.
+ */
+function register(mdPath: string, root: () => string, home: string): RegistryEntry {
     const { frontmatter } = parseDigest(readFileSync(mdPath, "utf8"));
-    return registerDigest({ id: frontmatter.id, mdPath, root }, registryPath(home));
+    const path = registryPath(home);
+    const known = readRegistry(path).digests[frontmatter.id];
+    if (known?.mdPath === mdPath) return known;
+    return registerDigest({ id: frontmatter.id, mdPath, root: root() }, path);
 }
 
 /** The registered digest for a reference. A target or a path is registered, so the server can find it. */
 export function resolveDigest(input: RefInput, place: Place): RegistryEntry {
-    if (input.id !== undefined) return findDigest(input.id, registryPath(place.home));
+    if (input.id !== undefined) {
+        if (input.ref !== undefined) throw new DigestError("BAD_INPUT", "Give a digest id or a ref, not both.");
+        return findDigest(input.id, registryPath(place.home));
+    }
     if (input.ref?.endsWith(".md") === true) {
         const mdPath = resolve(place.cwd, input.ref);
         if (!existsSync(mdPath)) throw new DigestError("NOT_FOUND", `${mdPath} does not exist.`);
-        return register(mdPath, findRepoRoot(place.cwd), place.home);
+        return register(mdPath, () => findRepoRoot(place.cwd), place.home);
     }
     const copy = workingCopyFor(input.ref, place);
     if (!existsSync(copy.mdPath)) {
@@ -58,5 +68,5 @@ export function resolveDigest(input: RefInput, place: Place): RegistryEntry {
             hint: "Create it with `diff-digest init`.",
         });
     }
-    return register(copy.mdPath, copy.root, place.home);
+    return register(copy.mdPath, () => copy.root, place.home);
 }

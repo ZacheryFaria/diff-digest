@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ServeOutputSchema } from "../../src/cli/outputs";
+import { serverCall } from "../../src/cli/self";
 import { createApiClient } from "../../src/lib/client";
 import { stopServer } from "../../src/server/lifecycle";
 import { envelope, runCli } from "../helpers/cli";
@@ -59,6 +60,26 @@ describe("server commands", () => {
             data: { running: false },
         });
     }, 30_000);
+
+    test("wait with a stale server.json is SERVER_DOWN (exit 11)", () => {
+        const s = setup();
+        const info = { pid: process.pid, port: 1, version: "0.0.0", startedAt: "2026-10-01T00:00:00.000Z" };
+        writeFileSync(join(s.home, "server.json"), JSON.stringify(info));
+        const result = runCli(["wait", "--timeout", "1", "--json"], s.cwd, s.home);
+        expect(envelope(result)).toMatchObject({
+            ok: false,
+            error: { code: "SERVER_DOWN", hint: "Run `diff-digest serve`." },
+        });
+        expect(result.code).toBe(11);
+    });
+
+    test("a connection error from the server is SERVER_DOWN", async () => {
+        const error = await serverCall(() => Promise.reject(new TypeError("Unable to connect."))).then(
+            () => null,
+            (failure: unknown) => failure,
+        );
+        expect(error).toMatchObject({ code: "SERVER_DOWN", hint: "Run `diff-digest serve`." });
+    });
 
     test("wait with no server is SERVER_DOWN (exit 11)", () => {
         const s = setup();

@@ -5,7 +5,7 @@ import { WaitResultSchema } from "../../lib/schemas-api";
 import type { CliContext } from "../context";
 import { emit, jsonFlag } from "../output";
 import { resolveDigest } from "../ref";
-import { runningApi } from "../self";
+import { runningApi, serverCall } from "../self";
 import { idFlag, refPositional, type RefFlags } from "./shared";
 
 interface WaitFlags extends RefFlags {
@@ -33,12 +33,16 @@ export const waitCommand = buildCommand({
             {
                 json: flags.json,
                 schema: WaitResultSchema,
-                text: r => `ACTION: ${r.type === "action" ? r.action.type : "timeout"}\n${JSON.stringify(r, null, 2)}`,
+                text: r =>
+                    r.type === "action"
+                        ? `ACTION: ${r.action.type}\n${JSON.stringify(r.action, null, 2)}`
+                        : `ACTION: timeout\n${JSON.stringify({ type: "timeout" }, null, 2)}`,
             },
-            () => {
+            async () => {
                 const entry = resolveDigest({ ref, id: flags.id }, this);
                 const timeoutMs = Math.min(Math.max(1, Math.round(flags.timeout * 1000)), MAX_WAIT_MS);
-                return runningApi(this.home).actions.wait({ id: entry.id, timeoutMs });
+                const api = await runningApi(this.home);
+                return serverCall(() => api.actions.wait({ id: entry.id, timeoutMs }));
             },
         );
     },
