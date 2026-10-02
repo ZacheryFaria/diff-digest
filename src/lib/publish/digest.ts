@@ -6,7 +6,8 @@ import { hasErrors } from "../lint";
 import type { OpenDigest } from "../payload";
 import { renderLinks } from "../render";
 import { isSha } from "../schemas";
-import { backendsFor, linkContext, linkHead, locateInput, place } from "./context";
+import { linkContext, linkHead, placeFor } from "./context";
+import { checkNotAllFailed, settleEach } from "./failures";
 import type { PublishReport } from "./schemas";
 
 export interface PublishOptions {
@@ -39,17 +40,23 @@ export async function publishDigest(
             data: issues,
         });
     }
-    const { placed, skipped } = await place(
-        backendsFor(open.entry.root, options.to, options.home, deps),
-        locateInput(open, null),
-    );
+    const { placed, skipped, failed, chosen } = await placeFor(open, options.to, options.home, deps);
     const meta = metaOf(open);
     const rendered = placed.map(p => ({
         ...p,
         text: renderLinks(open.body, a => p.backend.anchorLink(a, linkContext(open, p.location))),
     }));
-    if (options.dryRun)
-        return { results: [], previews: rendered.map(r => ({ backend: r.backend.name, text: r.text })), skipped };
-    const results = await Promise.all(rendered.map(r => r.backend.publish(r.location, r.text, meta)));
-    return { results, previews: [], skipped };
+    if (options.dryRun) {
+        const previews = await Promise.all(
+            rendered.map(async r => ({
+                backend: r.backend.name,
+                text: await r.backend.envelope(r.location, r.text, meta),
+            })),
+        );
+        return { results: [], previews, skipped, errors: failed };
+    }
+    const { results, errors: failures } = await settleEach(rendered, r => r.backend.publish(r.location, r.text, meta));
+    const errors = [...failed, ...failures];
+    checkNotAllFailed(errors, chosen);
+    return { results, previews: [], skipped, errors };
 }

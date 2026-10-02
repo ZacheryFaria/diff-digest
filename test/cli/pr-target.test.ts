@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { readFileSync, rmSync } from "node:fs";
+import { initWorkingCopy } from "../../src/cli/init";
+import { parseDigest } from "../../src/lib/frontmatter";
 import type { PrInfo } from "../../src/lib/backends/types";
 import { git, mergeBase, rev } from "../../src/lib/repo";
 import { resolveTarget, type PrLookup } from "../../src/cli/target";
-import { makeRepo, type TestRepo } from "../helpers/repo";
+import { makeRepo, tempDir, type TestRepo } from "../helpers/repo";
 
 let repo: TestRepo | undefined;
-afterEach(() => repo?.remove());
+let home: string | undefined;
+afterEach(() => {
+    repo?.remove();
+    if (home !== undefined) rmSync(home, { recursive: true, force: true });
+});
 
 function setup(): { root: string; pr: PrInfo } {
     repo = makeRepo();
@@ -58,5 +65,12 @@ describe("PR targets", () => {
         const { root, pr } = setup();
         git(root, ["checkout", "-q", "zf/pr"]);
         expect(resolveTarget(root, "7", () => pr)).toMatchObject({ kind: "pr", checkedOut: true });
+    });
+
+    test("init for a PR keeps the PR URL in meta.pr", () => {
+        const { root, pr } = setup();
+        home = tempDir("dd-home-");
+        const made = initWorkingCopy("#7", { cwd: root, home, lookupPr: () => pr });
+        expect(parseDigest(readFileSync(made.path, "utf8")).frontmatter.meta).toEqual({ pr: pr.url });
     });
 });

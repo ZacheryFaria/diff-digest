@@ -1,7 +1,7 @@
 // `publish` and `pull`: send the digest to its backends, or get it back from one.
 import { realDeps } from "../../lib/backends/deps";
 import { pullDigest } from "../../lib/publish/pull";
-import { PublishReportSchema, PullReportSchema, type PublishReport } from "../../lib/publish/schemas";
+import { PublishReportSchema, PullReportSchema, type PublishReport, type PullReport } from "../../lib/publish/schemas";
 import { localApi } from "../api";
 import type { CliContext } from "../context";
 import { emit } from "../output";
@@ -14,6 +14,7 @@ export function reportText(report: PublishReport): string {
         ...report.results.flatMap(r => r.warnings.map(w => `warning (${r.backend}): ${w}`)),
         ...report.previews.map(p => `--- ${p.backend} ---\n${p.text}`),
         ...report.skipped.map(s => `skipped ${s}`),
+        ...report.errors.map(e => `failed ${e.backend} (${e.code}): ${e.message}`),
     ];
     return lines.length === 0 ? "Nothing was published." : lines.join("\n");
 }
@@ -36,6 +37,14 @@ export async function publish(this: CliContext, flags: PublishFlags, ref?: strin
     });
 }
 
+function pullText(r: PullReport): string {
+    const lines = [r.path, `from ${r.backend}: ${r.ref}`];
+    if (r.headMissing)
+        lines.push("warning: the digest's head commit is not in the clone, so the copy uses the target head");
+    else if (r.stale) lines.push("warning: the digest is for another head than the target");
+    return lines.join("\n");
+}
+
 export interface PullFlags {
     readonly json: boolean;
     readonly from?: string;
@@ -48,8 +57,7 @@ export async function pull(this: CliContext, flags: PullFlags, ref?: string): Pr
         {
             json: flags.json,
             schema: PullReportSchema,
-            text: r =>
-                `${r.path}\nfrom ${r.backend}: ${r.ref}${r.stale ? "\nwarning: the digest is for another head than the target" : ""}`,
+            text: pullText,
         },
         () => {
             const { root, target } = workingCopyFor(ref, this);

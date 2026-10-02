@@ -3,7 +3,9 @@ import type { BackendDeps } from "../backends/types";
 import type { OpenDigest } from "../payload";
 import { reviewMarkdown } from "../review";
 import { readComments, updateComments } from "../store";
-import { backendsFor, linkContext, linkHead, locateInput, place } from "./context";
+import { DigestError } from "../errors";
+import { linkContext, linkHead, placeFor } from "./context";
+import { checkNotAllFailed, settleEach } from "./failures";
 import type { PublishReport } from "./schemas";
 
 export async function publishReview(
@@ -14,24 +16,25 @@ export async function publishReview(
 ): Promise<PublishReport> {
     const comments = readComments(open.entry.mdPath);
     const ids = new Set(comments.filter(c => c.status === "open" && c.author === "user").map(c => c.id));
-    const { placed, skipped } = await place(backendsFor(open.entry.root, to, home, deps), locateInput(open, null));
+    if (ids.size === 0) throw new DigestError("BAD_INPUT", "No open comments to post.");
+    const { placed, skipped, failed, chosen } = await placeFor(open, to, home, deps);
     const head = linkHead(open);
-    const results = await Promise.all(
-        placed.map(p => {
-            const review = reviewMarkdown(comments, (path, start, end, side) =>
-                p.backend.anchorLink(
-                    { path, start, end },
-                    linkContext(open, p.location, side === "base" ? open.frontmatter.base : head),
-                ),
-            );
-            return p.backend.publishReview(p.location, review, head);
-        }),
-    );
+    const { results, errors: failures } = await settleEach(placed, p => {
+        const review = reviewMarkdown(comments, (path, start, end, side) =>
+            p.backend.anchorLink(
+                { path, start, end },
+                linkContext(open, p.location, side === "base" ? open.frontmatter.base : head),
+            ),
+        );
+        return p.backend.publishReview(p.location, review, head);
+    });
+    const errors = [...failed, ...failures];
+    checkNotAllFailed(errors, chosen);
     const ref = results[0]?.ref;
-    if (ref !== undefined && ids.size > 0) {
+    if (ref !== undefined) {
         updateComments(open.entry.mdPath, list =>
             list.map(c => (ids.has(c.id) ? { ...c, status: "shared" as const, ref } : c)),
         );
     }
-    return { results, previews: [], skipped };
+    return { results, previews: [], skipped, errors };
 }

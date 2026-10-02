@@ -27,7 +27,8 @@ export function initWorkingCopy(ref: string | undefined, place: Place, base?: st
         // null: the head is the working tree (a checked-out target).
         head: target.checkedOut ? null : target.head,
         pinned: !target.checkedOut,
-        meta: {},
+        // A copy made from a PR keeps the PR, so publish goes to that PR and does not search by branch.
+        meta: target.pr === undefined ? {} : { pr: target.pr.url },
     };
     writeAtomic(mdPath, serializeDigest(frontmatter, "\n# Title\n"));
     registerDigest({ id, mdPath, root }, registryPath(place.home));

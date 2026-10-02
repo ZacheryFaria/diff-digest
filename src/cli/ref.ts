@@ -8,7 +8,7 @@ import { findDigest, readRegistry, registerDigest, registryPath } from "../lib/r
 import { findRepoRoot, repoKeys, rev } from "../lib/repo";
 import type { RegistryEntry } from "../lib/schemas-api";
 import { workingCopyPath } from "../lib/store";
-import { resolveTarget, type Target } from "./target";
+import { resolveTarget, type PrLookup, type Target } from "./target";
 
 export interface RefInput {
     readonly ref?: string | undefined;
@@ -18,6 +18,8 @@ export interface RefInput {
 export interface Place {
     readonly cwd: string;
     readonly home: string;
+    /** Reads a PR for a PR target (gh by default). Tests give a fake. */
+    readonly lookupPr?: PrLookup;
 }
 
 export interface WorkingCopy {
@@ -38,7 +40,7 @@ export function newDigestId(): string {
  */
 export function workingCopyFor(ref: string | undefined, place: Place, base?: string): WorkingCopy {
     const root = findRepoRoot(place.cwd);
-    const resolved = resolveTarget(root, ref);
+    const resolved = resolveTarget(root, ref, place.lookupPr);
     const target = base === undefined ? resolved : { ...resolved, base: rev(root, base) };
     return { root, target, mdPath: workingCopyPath(repoKeys(root)[0], target.name, place.home) };
 }
