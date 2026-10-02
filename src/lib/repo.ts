@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { DigestError } from "./errors";
 import { ShaSchema, type Sha } from "./schemas";
@@ -27,8 +28,9 @@ export interface OriginRepo {
     readonly repo: string;
 }
 
-/** Runs git and returns the result. It never throws for a non-zero exit. */
+/** Runs git and returns the result. It never throws for a non-zero exit. A missing `root` is NOT_FOUND. */
 export function runGit(root: string, args: readonly string[], input?: string): GitResult {
+    if (!existsSync(root)) throw new DigestError("NOT_FOUND", `The folder ${root} does not exist.`);
     const result = Bun.spawnSync(["git", "-c", "color.ui=never", ...args], {
         cwd: root,
         // A fetch from a new HTTPS remote must fail, not wait for a password on the terminal.

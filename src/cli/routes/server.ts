@@ -32,8 +32,14 @@ export const serverRoutes = buildRouteMap({
             loader: async () => (await import("../commands/server")).serverRestart,
         }),
         logs: buildCommand({
-            docs: { brief: `Print the last ${LOG_LINES} lines of the server log` },
-            parameters: jsonOnly,
+            docs: { brief: `Print the last ${LOG_LINES} lines of the server log (-f: then follow it)` },
+            parameters: {
+                flags: {
+                    json: jsonFlag,
+                    follow: { kind: "boolean", brief: "Print new lines until Ctrl-C", default: false },
+                },
+                aliases: { f: "follow" },
+            },
             loader: async () => (await import("../commands/server")).serverLogs,
         }),
     },

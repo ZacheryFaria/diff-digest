@@ -9,6 +9,7 @@ export interface InitResult {
     readonly id: string;
     readonly path: string;
     readonly created: boolean;
+    readonly warnings: readonly string[];
 }
 
 /** `base` replaces the target's base in the new frontmatter. A working copy that exists is not changed. */
@@ -17,7 +18,13 @@ export function initWorkingCopy(ref: string | undefined, place: Place, base?: st
     if (existsSync(mdPath)) {
         const { frontmatter } = parseDigest(readFileSync(mdPath, "utf8"));
         registerDigest({ id: frontmatter.id, mdPath, root }, registryPath(place.home));
-        return { id: frontmatter.id, path: mdPath, created: false };
+        const kept =
+            base !== undefined && frontmatter.base !== target.base
+                ? [
+                      `The working copy exists, so it keeps its base ${frontmatter.base.slice(0, 11)}. Edit \`base:\`, or delete the file and run init again.`,
+                  ]
+                : [];
+        return { id: frontmatter.id, path: mdPath, created: false, warnings: kept };
     }
     const id = newDigestId();
     const frontmatter = {
@@ -32,5 +39,5 @@ export function initWorkingCopy(ref: string | undefined, place: Place, base?: st
     };
     writeAtomic(mdPath, serializeDigest(frontmatter, "\n# Title\n"));
     registerDigest({ id, mdPath, root }, registryPath(place.home));
-    return { id, path: mdPath, created: true };
+    return { id, path: mdPath, created: true, warnings: [] };
 }

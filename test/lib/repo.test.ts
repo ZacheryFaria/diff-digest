@@ -35,6 +35,14 @@ describe("repo", () => {
         expect(repoKeys(repo.root)).toEqual(["widgets", "github.com/octo/widgets"]);
     });
 
+    test("git in a folder that is gone is NOT_FOUND", () => {
+        repo = makeRepo();
+        const root = repo.root;
+        repo.remove();
+        repo = undefined;
+        expectDigestError(() => git(root, ["status"]), "NOT_FOUND");
+    });
+
     test("slug replaces characters that are not safe in a file name", () => {
         expect(slug("zf/foo bar")).toBe("zf-foo-bar");
     });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fmtDigest } from "../../src/cli/fmt-digest";
 import { registerDigest, registryPath } from "../../src/lib/registry";
 import type { RegistryEntry } from "../../src/lib/schemas-api";
@@ -54,5 +54,15 @@ describe("fmt --questions-to-notes", () => {
         );
         expect(failed).toMatchObject({ code: "NOT_FOUND" });
         expect(readFileSync(entry.mdPath, "utf8")).toBe(before);
+    });
+
+    test("a second run after the notes were written does not add the same note again", async () => {
+        const entry = setup(`\n# One${QUESTIONS}`);
+        const before = readFileSync(entry.mdPath, "utf8");
+        await fmtDigest(entry, home ?? "", OPTIONS);
+        // As if the file write failed after the notes were written.
+        writeFileSync(entry.mdPath, before);
+        await fmtDigest(entry, home ?? "", OPTIONS);
+        expect(readComments(entry.mdPath).map(c => c.body)).toEqual(["Q: Why one?"]);
     });
 });

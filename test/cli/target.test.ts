@@ -97,6 +97,12 @@ describe("init, path, and the digest reference", () => {
         if (!init.ok) throw new Error(JSON.stringify(init));
         const { path } = z.object({ path: z.string() }).parse(init.data);
         expect(parseDigest(readFileSync(path, "utf8")).frontmatter).toMatchObject({ base: parent, head: null });
+        expect(envelope(runCli(["init", "--json"], r.root, h))).toMatchObject({ data: { warnings: [] } });
+        const again = envelope(runCli(["init", "--base", "main", "--json"], r.root, h));
+        expect(again).toMatchObject({
+            ok: true,
+            data: { created: false, warnings: [expect.stringContaining("keeps its base")] },
+        });
         const pinned = envelope(runCli(["init", "zf/topic", "--json"], r.root, h));
         if (!pinned.ok) throw new Error(JSON.stringify(pinned));
         const pinnedPath = z.object({ path: z.string() }).parse(pinned.data).path;

@@ -1,9 +1,10 @@
 // `server run | status | stop | restart | logs`: the background server, managed by the CLI (spec §4).
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { listDigests, registryPath } from "../../lib/registry";
 import { isHealthy, readServerInfo, serverLogPath, stopServer } from "../../server/lifecycle";
 import { runServer } from "../../server/run";
 import type { CliContext } from "../context";
+import { followLog } from "../follow";
 import { emit } from "../output";
 import { ServerStatusOutputSchema, StopOutputSchema, TextOutputSchema } from "../outputs";
 import { restartServer } from "../self";
@@ -44,10 +45,32 @@ export async function serverRestart(this: CliContext, flags: JsonFlags): Promise
     );
 }
 
-export async function serverLogs(this: CliContext, flags: JsonFlags): Promise<void> {
+function untilInterrupt(): Promise<void> {
+    return new Promise(resolve => {
+        process.once("SIGINT", () => {
+            resolve();
+        });
+    });
+}
+
+export interface LogsFlags extends JsonFlags {
+    readonly follow: boolean;
+}
+
+export async function serverLogs(this: CliContext, flags: LogsFlags): Promise<void> {
+    const path = serverLogPath(this.home);
+    const end = existsSync(path) ? statSync(path).size : 0;
     await emit(this.out, { json: flags.json, schema: TextOutputSchema, text: t => t }, () => {
-        const path = serverLogPath(this.home);
         if (!existsSync(path)) return "";
         return readFileSync(path, "utf8").split("\n").slice(-LOG_LINES).join("\n");
     });
+    if (!flags.follow || flags.json) return;
+    await followLog(
+        path,
+        end,
+        line => {
+            this.out.print(line);
+        },
+        untilInterrupt,
+    );
 }

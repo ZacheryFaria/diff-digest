@@ -31,7 +31,9 @@ export const SchemaOutputSchema = z.unknown();
 
 export const PathOutputSchema = z.strictObject({ path: z.string(), exists: z.boolean() }).readonly();
 
-export const InitOutputSchema = z.strictObject({ id: z.string(), path: z.string(), created: z.boolean() }).readonly();
+export const InitOutputSchema = z
+    .strictObject({ id: z.string(), path: z.string(), created: z.boolean(), warnings: z.array(z.string()).readonly() })
+    .readonly();
 
 export const HunksOutputSchema = z
     .strictObject({

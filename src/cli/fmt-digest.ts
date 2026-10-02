@@ -31,8 +31,13 @@ export async function fmtDigest(
     if (options.check || next === md) return { path: entry.mdPath, changed: next !== md, questions: [] };
     if (title !== undefined && result.questions.length > 0) {
         const api = localApi(home);
+        // A second run after a failed note must not add the earlier notes again.
+        const existing = new Set(
+            (await api.comments.list({ id: entry.id })).filter(c => c.author === "agent").map(c => c.body),
+        );
+        const fresh = result.questions.filter(q => !existing.has(`Q: ${q}`));
         // One note at a time, in order: each one is a locked write of the comments file.
-        await result.questions.reduce<Promise<unknown>>(
+        await fresh.reduce<Promise<unknown>>(
             (previous, question) =>
                 previous.then(() => api.comments.note({ id: entry.id, text: title, body: `Q: ${question}` })),
             Promise.resolve(),

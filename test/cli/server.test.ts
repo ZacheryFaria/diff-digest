@@ -63,6 +63,25 @@ describe("server commands", () => {
         });
     }, 30_000);
 
+    test("a restarted server keeps its port, and takes a free port when the last one is in use", async () => {
+        const s = setup();
+        const port = (): number => {
+            const served = envelope(runCli(["serve", "--json"], s.cwd, s.home));
+            if (!served.ok) throw new Error(JSON.stringify(served));
+            return Number(new URL(ServeOutputSchema.parse(served.data).url).port);
+        };
+        const first = port();
+        runCli(["server", "stop"], s.cwd, s.home);
+        expect(port()).toBe(first);
+        runCli(["server", "stop"], s.cwd, s.home);
+        const other = Bun.serve({ hostname: "127.0.0.1", port: first, fetch: () => new Response("") });
+        try {
+            expect(port()).not.toBe(first);
+        } finally {
+            await other.stop(true);
+        }
+    }, 30_000);
+
     test("wait with a stale server.json is SERVER_DOWN (exit 11)", () => {
         const s = setup();
         const info = { pid: process.pid, port: 1, version: "0.0.0", startedAt: "2026-10-01T00:00:00.000Z" };
