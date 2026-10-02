@@ -18,7 +18,7 @@ export function parsePrUrl(arg: string): PrRef | null {
     const url = PR_URL.exec(arg);
     if (url === null) return null;
     const [, host = "", owner = "", repo = "", n = "0"] = url;
-    if (!NAME.test(owner) || !NAME.test(repo)) return null;
+    if (![owner, repo].every(name => NAME.test(name) && name !== "." && name !== "..")) return null;
     return { host, owner, repo, number: Number(n) };
 }
 
@@ -96,10 +96,14 @@ export function findPrForBranch(deps: BackendDeps, root: string, branch: string)
     return first === undefined ? null : prInfo(deps, { ...origin, number: first.number }, root);
 }
 
-/** `origin` when the PR is in the origin repo, else the PR repo's URL. */
-function remoteFor(root: string, pr: OriginRepo): string {
+function repoKey(r: OriginRepo): string {
+    return `${r.host}/${r.owner}/${r.repo}`.toLowerCase();
+}
+
+/** `origin` when the PR is in the origin repo, else the PR repo's URL. GitHub names ignore case. */
+export function remoteFor(root: string, pr: OriginRepo): string {
     const origin = originRepo(root);
-    const same = origin?.host === pr.host && origin.owner === pr.owner && origin.repo === pr.repo;
+    const same = origin !== null && repoKey(origin) === repoKey(pr);
     return same ? "origin" : `https://${pr.host}/${pr.owner}/${pr.repo}.git`;
 }
 

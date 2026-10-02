@@ -17,7 +17,7 @@ export async function publishReview(
     const comments = readComments(open.entry.mdPath);
     const ids = new Set(comments.filter(c => c.status === "open" && c.author === "user").map(c => c.id));
     if (ids.size === 0) throw new DigestError("BAD_INPUT", "No open comments to post.");
-    const { placed, skipped, failed, chosen } = await placeFor(open, to, home, deps);
+    const { placed, skipped, failed } = await placeFor(open, to, home, deps);
     const head = linkHead(open);
     const { results, errors: failures } = await settleEach(placed, p => {
         const review = reviewMarkdown(comments, (path, start, end, side) =>
@@ -29,7 +29,7 @@ export async function publishReview(
         return p.backend.publishReview(p.location, review, head);
     });
     const errors = [...failed, ...failures];
-    checkNotAllFailed(errors, chosen);
+    checkNotAllFailed(errors, results.length);
     const ref = results[0]?.ref;
     if (ref !== undefined) {
         updateComments(open.entry.mdPath, list =>

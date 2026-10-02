@@ -30,3 +30,11 @@
 2. **The github backend.** `src/lib/backends/github.ts` (`gh api` for PR info, comments list/create/update; the 65,536-character limit; blob links at the head sha), `src/lib/backends/pr.ts` (parse `#123` and PR URLs, `resolvePr`, fetch commits). Tests with a fake `exec`.
 3. **PR targets.** `src/cli/target.ts` gets the `pr` kind through the github backend; `target`, `init`, and the digest reference accept PR refs.
 4. **Publish procedures and commands.** Contract + router (`publish.digest`, `publish.review`, `publish.backends`), `src/lib/publish.ts` (choose backends from `--to` or `publishTo`, render with each backend's linker, refuse lint errors unless forced, mark posted comments `shared` with the ref), CLI `publish [ref] [--to] [--dry-run] [--force]`, `pull <ref> [--from] [--force]`, `comments --publish [--to]`.
+
+## Carry-forward for plans 6–7
+
+| Plan | Item |
+|---|---|
+| — | Fixed after the re-review: a skipped backend plus a failed one is BACKEND_FAILED (one failure keeps its own code); a dry run settles each backend and checks for all-failed; `pull` fetches a missing head from the PR repo; git runs with `GIT_TERMINAL_PROMPT=0`; `.` and `..` are not GitHub names; the origin-repo match ignores case. |
+| any | `ensurePrCommits` fetching from another repo's URL has no test (ruled acceptable). |
+| any | `find.ts` re-exports `backendsFor`, to keep `pull.ts` at 10 imports. |

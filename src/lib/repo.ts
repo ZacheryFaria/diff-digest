@@ -31,6 +31,8 @@ export interface OriginRepo {
 export function runGit(root: string, args: readonly string[], input?: string): GitResult {
     const result = Bun.spawnSync(["git", "-c", "color.ui=never", ...args], {
         cwd: root,
+        // A fetch from a new HTTPS remote must fail, not wait for a password on the terminal.
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
         stdin: input === undefined ? "ignore" : Buffer.from(input),
         stdout: "pipe",
         stderr: "pipe",

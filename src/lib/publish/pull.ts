@@ -4,10 +4,10 @@ import type { BackendDeps, PrInfo } from "../backends/types";
 import { DigestError } from "../errors";
 import { serializeDigest } from "../frontmatter";
 import { registerDigest, registryPath } from "../registry";
-import { hasCommit, repoKeys, runGit } from "../repo";
+import { repoKeys } from "../repo";
 import type { Sha } from "../schemas";
 import { workingCopyPath, writeAtomic } from "../store";
-import { backendsFor, findPulled } from "./find";
+import { backendsFor, ensureCommit, findPulled } from "./find";
 import type { PullReport } from "./schemas";
 
 /** What `pull` needs from a target (the CLI's `Target` has these fields). */
@@ -26,12 +26,6 @@ export interface PullOptions {
 }
 
 /** True when the clone has `sha`, after a fetch from origin when it did not. */
-function ensureCommit(root: string, sha: string): boolean {
-    if (hasCommit(root, sha)) return true;
-    runGit(root, ["fetch", "-q", "origin", sha]);
-    return hasCommit(root, sha);
-}
-
 export async function pullDigest(
     root: string,
     target: PullTarget,
@@ -48,7 +42,7 @@ export async function pullDigest(
     const input = { root, repo, name: target.name, branch: target.branch, pr: target.pr ?? null };
     const found = await findPulled(backendsFor(root, options.from, options.home, deps), input);
     const { meta, body, ref } = found.pulled;
-    const headMissing = !target.checkedOut && meta.head !== null && !ensureCommit(root, meta.head);
+    const headMissing = !target.checkedOut && meta.head !== null && !ensureCommit(root, meta.head, target.pr);
     const frontmatter = {
         id: meta.id,
         branch: meta.branch,

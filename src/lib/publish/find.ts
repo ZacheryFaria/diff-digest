@@ -1,9 +1,18 @@
-// `pull` looks for the digest in each backend in order. A backend that fails does not stop the search.
-import type { Backend, LocateInput, Pulled } from "../backends/types";
+// `pull` looks for the digest in each backend in order, and fetches its head commit. A backend that fails does not stop the search.
+import { remoteFor } from "../backends/pr";
+import type { Backend, LocateInput, PrInfo, Pulled } from "../backends/types";
 import { DigestError } from "../errors";
+import { hasCommit, runGit } from "../repo";
 import { failureOf, type BackendFailure } from "./failures";
 
 export { backendsFor } from "../backends/registry";
+
+/** Fetches a pulled digest's head commit when the clone does not have it: from the PR repo, or from origin. */
+export function ensureCommit(root: string, sha: string, pr: PrInfo | undefined): boolean {
+    if (hasCommit(root, sha)) return true;
+    runGit(root, ["fetch", "-q", pr === undefined ? "origin" : remoteFor(root, pr), sha]);
+    return hasCommit(root, sha);
+}
 
 interface Found {
     readonly backend: string;

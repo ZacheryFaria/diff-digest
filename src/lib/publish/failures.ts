@@ -14,13 +14,20 @@ export function failureOf(backend: string, error: unknown): BackendFailure {
     };
 }
 
-/** Throws BACKEND_FAILED when every chosen backend failed. */
-export function checkNotAllFailed(failures: readonly BackendFailure[], chosen: number): void {
-    if (failures.length === 0 || failures.length < chosen) return;
-    throw new DigestError("BACKEND_FAILED", `Every backend failed: ${failures.map(f => f.backend).join(", ")}.`, {
-        hint: failures.map(f => `${f.backend}: ${f.message}`).join("\n"),
-        data: failures,
-    });
+/** Throws BACKEND_FAILED when a backend failed and no backend published (the others were skipped). */
+export function checkNotAllFailed(failures: readonly BackendFailure[], published: number): void {
+    if (failures.length === 0 || published > 0) return;
+    const [only] = failures;
+    // One failure keeps its own code (for example BAD_INPUT for a body over the size limit).
+    if (failures.length === 1 && only !== undefined) throw new DigestError(only.code, only.message, { data: failures });
+    throw new DigestError(
+        "BACKEND_FAILED",
+        `No backend published: ${failures.map(f => f.backend).join(", ")} failed.`,
+        {
+            hint: failures.map(f => `${f.backend}: ${f.message}`).join("\n"),
+            data: failures,
+        },
+    );
 }
 
 /** Runs `run` for each placed backend. A failed backend goes into `errors`; the others still run. */

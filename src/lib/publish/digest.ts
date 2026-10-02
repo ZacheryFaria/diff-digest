@@ -7,7 +7,7 @@ import type { OpenDigest } from "../payload";
 import { renderLinks } from "../render";
 import { isSha } from "../schemas";
 import { linkContext, linkHead, placeFor } from "./context";
-import { checkNotAllFailed, settleEach } from "./failures";
+import { checkNotAllFailed, failureOf, settleEach } from "./failures";
 import type { PublishReport } from "./schemas";
 
 export interface PublishOptions {
@@ -40,23 +40,30 @@ export async function publishDigest(
             data: issues,
         });
     }
-    const { placed, skipped, failed, chosen } = await placeFor(open, options.to, options.home, deps);
+    const { placed, skipped, failed } = await placeFor(open, options.to, options.home, deps);
     const meta = metaOf(open);
     const rendered = placed.map(p => ({
         ...p,
         text: renderLinks(open.body, a => p.backend.anchorLink(a, linkContext(open, p.location))),
     }));
     if (options.dryRun) {
-        const previews = await Promise.all(
-            rendered.map(async r => ({
-                backend: r.backend.name,
-                text: await r.backend.envelope(r.location, r.text, meta),
-            })),
-        );
-        return { results: [], previews, skipped, errors: failed };
+        const settled = await Promise.allSettled(rendered.map(r => r.backend.envelope(r.location, r.text, meta)));
+        const previews = rendered.flatMap((r, i) => {
+            const s = settled[i];
+            return s?.status === "fulfilled" ? [{ backend: r.backend.name, text: s.value }] : [];
+        });
+        const errors = [
+            ...failed,
+            ...rendered.flatMap((r, i) => {
+                const s = settled[i];
+                return s?.status === "rejected" ? [failureOf(r.backend.name, s.reason)] : [];
+            }),
+        ];
+        checkNotAllFailed(errors, previews.length);
+        return { results: [], previews, skipped, errors };
     }
     const { results, errors: failures } = await settleEach(rendered, r => r.backend.publish(r.location, r.text, meta));
     const errors = [...failed, ...failures];
-    checkNotAllFailed(errors, chosen);
+    checkNotAllFailed(errors, results.length);
     return { results, previews: [], skipped, errors };
 }

@@ -134,7 +134,7 @@ There is one server for each user. No launchd and no systemd. The CLI manages th
 
 - Path: `~/.diff-digest/store/<repo>/<name>.md`. Comments: `<name>.comments.json` in the same folder. `<name>` comes from the target, as today: a branch slug, `commit-<sha>`, or `range-<a>-<b>`.
 - `diff-digest init [ref]` creates the file with its frontmatter and prints `{ id, path }`. The agent writes the body with its own file tools.
-- Frontmatter (tool-owned): `id` (short uuid), `base`, `head`, `branch`, `pinned`, and `meta` (free-form; the tool keeps it but does not read it).
+- Frontmatter (tool-owned): `id` (short uuid), `base`, `head`, `branch`, `pinned`, and `meta` (free-form; the tool keeps it and reads only `meta.pr`, the PR URL of a digest made from a PR).
 - The tool writes the frontmatter, the comments, the config, and the store. The agent writes only the body.
 - All writes are atomic: write a temp file, then rename it.
 
