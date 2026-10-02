@@ -122,7 +122,15 @@ export function CodePane({ target, payload, onClose }: CodePaneProps): ReactNode
             </div>
             <div id="code-body">
                 {view === null || view.error === null ? null : <div className="code-error">{view.error}</div>}
-                {view === null ? null : <CodeTable rows={view.rows} diff={view.rev === "diff"} />}
+                {view === null ? (
+                    <p className="loading">Loading…</p>
+                ) : (
+                    <CodeTable
+                        key={`${view.path}:${view.rev}`}
+                        rows={view.rows}
+                        diff={view.rev === "diff" && !view.unchanged}
+                    />
+                )}
             </div>
         </aside>
     );

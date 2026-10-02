@@ -1,6 +1,7 @@
 // A block that takes comments: a "+" button, its thread, and the composer.
 import { createElement, useState, type ReactNode } from "react";
 import type { Comment, CommentTarget } from "../../lib/schemas";
+import { classes } from "../classes";
 import { Composer, Thread } from "./Thread";
 
 export interface CommentableProps {
@@ -14,9 +15,7 @@ export interface CommentableProps {
 export function Commentable({ target, comments, content, className }: CommentableProps): ReactNode {
     const [open, setOpen] = useState(false);
     return (
-        <div
-            className={`commentable${comments.length > 0 ? " has-comments" : ""}${className === undefined ? "" : ` ${className}`}`}
-        >
+        <div className={classes(["commentable", comments.length > 0 && "has-comments", className ?? false])}>
             <button
                 type="button"
                 className="cbtn"
@@ -47,10 +46,12 @@ export interface CommentableRowProps {
     /** The cells of the row. The first cell gets the "+" button. */
     readonly cells: () => readonly ReactNode[];
     readonly width: number;
+    /** The row has a ⚠️ in a cell. */
+    readonly warn: boolean;
 }
 
 /** A table row that takes comments. Its thread and composer go in a full-width row below it. */
-export function CommentableRow({ target, comments, cells, width }: CommentableRowProps): ReactNode {
+export function CommentableRow({ target, comments, cells, width, warn }: CommentableRowProps): ReactNode {
     const [open, setOpen] = useState(false);
     const [first, ...rest] = cells();
     const button =
@@ -70,7 +71,7 @@ export function CommentableRow({ target, comments, cells, width }: CommentableRo
         <>
             {createElement(
                 "tr",
-                { className: comments.length > 0 ? "commentable has-comments" : "commentable" },
+                { className: classes(["commentable", comments.length > 0 && "has-comments", warn && "warn"]) },
                 createElement("td", null, button, first),
                 ...rest.map(cell => createElement("td", null, cell)),
             )}

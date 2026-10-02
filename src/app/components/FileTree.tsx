@@ -1,9 +1,11 @@
 // The changed files as a folder tree. A click opens the file's diff.
 import { useMemo, type ReactNode } from "react";
+import { matchesPath } from "../../lib/digest";
 import type { MarkedFile } from "../../lib/schemas-api";
 import { useApp } from "../state/context";
 import { buildTree, type TreeDir, type TreeFile } from "../tree";
 
+/** `active` is the open path; a digest anchor can be a path suffix, as the server reads it. */
 function FileRow({ file, active }: { readonly file: TreeFile; readonly active: string | null }): ReactNode {
     const { openCode } = useApp();
     const open = (): void => {
@@ -11,7 +13,7 @@ function FileRow({ file, active }: { readonly file: TreeFile; readonly active: s
     };
     return (
         <li
-            className={`file ${file.cls}${active === file.path ? " active" : ""}`}
+            className={`file ${file.cls}${active !== null && matchesPath(file.path, active) ? " active" : ""}`}
             title={file.oldPath === file.path ? file.path : `${file.oldPath} → ${file.path}`}
         >
             <button type="button" onClick={open}>

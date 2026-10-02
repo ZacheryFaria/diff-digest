@@ -1,28 +1,32 @@
 // The page: the toolbar, the file tree, the digest, and the code pane, with the shared actions in context.
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import type { ApiClient } from "../lib/client";
 import { PostCommentsDialog, PublishDialog } from "./components/Dialogs";
 import { Page } from "./components/Page";
 import { Toast } from "./components/Toast";
 import { Toolbar } from "./components/Toolbar";
 import { useActions } from "./state/actions";
-import { AppContext } from "./state/context";
+import { AppContext, type CodeTarget } from "./state/context";
 import { useLive } from "./state/live";
 
 export interface AppProps {
     readonly api: ApiClient;
     readonly id: string;
+    /** False for `?live=0`: load once, with no event stream. */
+    readonly follow: boolean;
+    /** The code pane target of a `#code=` deep link, or null. */
+    readonly initialCode: CodeTarget | null;
 }
 
 type Dialog = "publish" | "comments" | null;
 
-export function App({ api, id }: AppProps): ReactNode {
-    const live = useLive(api, id);
-    const { actions, code, setCode, message, clearMessage } = useActions(api, id, live);
+export function App({ api, id, follow, initialCode }: AppProps): ReactNode {
+    const live = useLive(api, id, follow);
+    const { actions, code, setCode, message, clearMessage } = useActions(api, id, live, initialCode);
     const [dialog, setDialog] = useState<Dialog>(null);
-    const close = (): void => {
+    const close = useCallback(() => {
         setDialog(null);
-    };
+    }, []);
     if (live.payload === null)
         return <p className={live.error === null ? "loading" : "error"}>{live.error ?? "Loading…"}</p>;
     return (

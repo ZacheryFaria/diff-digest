@@ -18,6 +18,19 @@ export function rangeRows(rows: readonly ViewRow[], from: CodeLine, to: CodeLine
     return codeLines(rows).filter(r => sameSide(r, from) && r.line >= lo && r.line <= hi);
 }
 
+/** The new end of a drag that enters `row`: a row on the other side does not move it. */
+export function dragTo(from: CodeLine, to: CodeLine, row: CodeLine): CodeLine {
+    return sameSide(from, row) ? row : to;
+}
+
+const FOCUS = ["hunk-focus", "focus", "added", "changed", "removed"];
+
+/** The row to scroll to: the anchored hunk, else the first anchored line, else the first change. */
+export function focusKey(rows: readonly ViewRow[]): string | undefined {
+    const code = codeLines(rows);
+    return FOCUS.map(c => code.find(r => r.classes.includes(c))?.key).find(k => k !== undefined);
+}
+
 export const MAX_TARGET_TEXT = 4000;
 
 /** The comment target for a range of rows. */

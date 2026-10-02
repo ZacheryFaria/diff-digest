@@ -19,6 +19,22 @@ const TextSchema = z.looseObject({ text: z.string() });
 const NestedSchema = z.looseObject({ tokens: z.array(z.unknown()).readonly().optional() });
 const LinkSchema = z.looseObject({ href: z.string() });
 const ImageSchema = z.looseObject({ href: z.string(), text: z.string() });
+const LinkDefsSchema = z.record(z.string(), z.object({ href: z.string() }).readonly()).readonly();
+/** The link reference definitions of a body (`[ref]: url`), by their normalized label. */
+export type LinkDefs = z.infer<typeof LinkDefsSchema>;
+
+const SAFE_LINK = /^(?:https?:|mailto:)/iu;
+const SAFE_IMAGE = /^(?:https?:|data:image\/)/iu;
+
+/** A link goes to the web, to a mail address, or to an anchor on the page. Other links show as text. */
+function safeLink(href: string): boolean {
+    return href.startsWith("#") || SAFE_LINK.test(href);
+}
+
+/** An image comes from the web or is inline data. A relative image has no file to load from this page. */
+function safeImage(href: string): boolean {
+    return SAFE_IMAGE.test(href);
+}
 
 function nested(token: unknown): readonly unknown[] {
     return NestedSchema.safeParse(token).data?.tokens ?? [];
@@ -44,17 +60,16 @@ function one(token: unknown): RichInline[] {
             return [{ kind: "code", text: textOf(token) }];
         }
         case "link": {
-            return [
-                {
-                    kind: "link",
-                    href: LinkSchema.safeParse(token).data?.href ?? "",
-                    children: fromTokens(nested(token)),
-                },
-            ];
+            const href = LinkSchema.safeParse(token).data?.href ?? "";
+            const children = fromTokens(nested(token));
+            return safeLink(href) ? [{ kind: "link", href, children }] : children;
         }
         case "image": {
             const image = ImageSchema.safeParse(token).data;
-            return image === undefined ? [] : [{ kind: "image", href: image.href, alt: image.text }];
+            if (image === undefined) return [];
+            return safeImage(image.href)
+                ? [{ kind: "image", href: image.href, alt: image.text }]
+                : [{ kind: "text", text: image.text }];
         }
         case "br": {
             return [{ kind: "br" }];
@@ -73,8 +88,18 @@ export function fromTokens(tokens: readonly unknown[]): RichInline[] {
     return tokens.flatMap(t => one(t));
 }
 
-/** The rich inline nodes of a Markdown text (a heading, a paragraph, a list item, or a table cell). */
-export function richInline(text: string): RichInline[] {
-    const tokens: readonly unknown[] = marked.Lexer.lexInline(text, { gfm: true });
+export function linkDefs(body: string): LinkDefs {
+    return LinkDefsSchema.safeParse(marked.lexer(body, { gfm: true }).links).data ?? {};
+}
+
+/**
+ * The rich inline nodes of a Markdown text (a heading, a paragraph, a list item, or a table cell).
+ * `links` are the body's reference definitions, so that `[text][ref]` renders as a link.
+ */
+export function richInline(text: string, links: LinkDefs = {}): RichInline[] {
+    const lexer = new marked.Lexer({ gfm: true });
+    // The lexer reads reference links from its own (new) token list.
+    Object.assign(lexer.tokens.links, links);
+    const tokens: readonly unknown[] = lexer.inlineTokens(text);
     return fromTokens(tokens);
 }

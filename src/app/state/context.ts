@@ -16,6 +16,8 @@ export interface AppActions {
     readonly comments: readonly Comment[];
     readonly addComment: (target: CommentTarget, body: string) => Promise<void>;
     readonly removeComment: (commentId: string) => Promise<void>;
+    /** The path of the open code target (as the digest anchor wrote it), or null. */
+    readonly codePath: string | null;
     readonly openCode: (target: CodeTarget) => void;
     readonly toast: (text: string, url?: string) => void;
 }

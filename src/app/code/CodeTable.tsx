@@ -1,11 +1,12 @@
 // The code rows with line and range comments: press + on a line and drag to another line on the same side.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Comment, CommentTarget } from "../../lib/schemas";
 import { Composer, Thread } from "../components/Thread";
 import { highlightLine } from "../highlight";
 import { useApp } from "../state/context";
 import type { CodeLine, ViewRow } from "./rows";
-import { codeThreads, rangeRows, rangeTarget } from "./select";
+import { classes } from "../classes";
+import { codeThreads, dragTo, focusKey, rangeRows, rangeTarget } from "./select";
 
 interface Drag {
     readonly from: CodeLine;
@@ -18,33 +19,33 @@ interface Draft {
     readonly target: CommentTarget;
 }
 
-function classes(parts: readonly (string | false)[]): string {
-    return parts.filter(p => p !== false).join(" ");
-}
-
-const FOCUS = ["hunk-focus", "focus", "added", "changed", "removed"];
-
-function focusKey(rows: readonly ViewRow[]): string | undefined {
-    const code = rows.filter(r => r.kind === "code");
-    return FOCUS.map(c => code.find(r => r.classes.includes(c))?.key).find(k => k !== undefined);
-}
-
+/** Props are the row (stable while the rows are), booleans, and stable functions, so `memo` skips most rows. */
 interface LineProps {
     readonly row: CodeLine;
-    readonly marked: { readonly range: boolean; readonly ranged: boolean; readonly focus: boolean };
-    readonly onStart: () => void;
-    readonly onEnter: () => void;
+    /** The highlighted text, made once for each row set. */
+    readonly code: () => ReactNode;
+    readonly range: boolean;
+    readonly ranged: boolean;
+    readonly focus: boolean;
+    readonly onStart: (row: CodeLine) => void;
+    readonly onEnter: (row: CodeLine) => void;
 }
 
-function Line({ row, marked, onStart, onEnter }: LineProps): ReactNode {
+const Line = memo(function Line({ row, code, range, ranged, focus, onStart, onEnter }: LineProps): ReactNode {
     const ref = useRef<HTMLTableRowElement>(null);
     useEffect(() => {
-        if (marked.focus) ref.current?.scrollIntoView({ block: "center" });
-    }, [marked.focus]);
+        if (focus) ref.current?.scrollIntoView({ block: "center" });
+    }, [focus]);
     const [first = "", second] = row.numbers;
-    const name = classes(["code-line", ...row.classes, marked.range && "in-range", marked.ranged && "comment-range"]);
+    const name = classes(["code-line", ...row.classes, range && "in-range", ranged && "comment-range"]);
     return (
-        <tr ref={ref} className={name} onMouseEnter={onEnter}>
+        <tr
+            ref={ref}
+            className={name}
+            onMouseEnter={() => {
+                onEnter(row);
+            }}
+        >
             <td className="ln">
                 <button
                     type="button"
@@ -52,7 +53,7 @@ function Line({ row, marked, onStart, onEnter }: LineProps): ReactNode {
                     title="Comment"
                     onMouseDown={e => {
                         e.preventDefault();
-                        onStart();
+                        onStart(row);
                     }}
                 >
                     +
@@ -62,11 +63,11 @@ function Line({ row, marked, onStart, onEnter }: LineProps): ReactNode {
             {second === undefined ? null : <td className="ln ln2">{second}</td>}
             <td>
                 {row.sign === null ? null : <span className="sign">{row.sign}</span>}
-                {highlightLine(row.path, row.text)}
+                {code()}
             </td>
         </tr>
     );
-}
+});
 
 function ThreadRow(props: {
     readonly row: CodeLine;
@@ -87,12 +88,15 @@ function ThreadRow(props: {
     );
 }
 
-function useDrag(rows: readonly ViewRow[]): {
+interface DragState {
     readonly drag: Drag | null;
-    readonly setDrag: (d: Drag | null) => void;
     readonly draft: Draft | null;
-    readonly setDraft: (d: Draft | null) => void;
-} {
+    readonly clearDraft: () => void;
+    readonly onStart: (row: CodeLine) => void;
+    readonly onEnter: (row: CodeLine) => void;
+}
+
+function useDrag(rows: readonly ViewRow[]): DragState {
     const [drag, setDrag] = useState<Drag | null>(null);
     const [draft, setDraft] = useState<Draft | null>(null);
     useEffect(() => {
@@ -109,7 +113,41 @@ function useDrag(rows: readonly ViewRow[]): {
             document.removeEventListener("mouseup", up);
         };
     }, [drag, rows]);
-    return { drag, setDrag, draft, setDraft };
+    const clearDraft = useCallback(() => {
+        setDraft(null);
+    }, []);
+    const onStart = useCallback((row: CodeLine) => {
+        setDraft(null);
+        setDrag({ from: row, to: row });
+    }, []);
+    // A row on the other side does not move the end, so the range stays on the side where it started.
+    const onEnter = useCallback((row: CodeLine) => {
+        setDrag(d => {
+            if (d === null) return d;
+            const to = dragTo(d.from, d.to, row);
+            return to === d.to ? d : { from: d.from, to };
+        });
+    }, []);
+    return { drag, draft, clearDraft, onStart, onEnter };
+}
+
+function blank(): ReactNode {
+    return " ";
+}
+
+/** Row key → its highlighted text. highlight.js runs once for each row set, not on each render. */
+function useHighlights(rows: readonly ViewRow[]): ReadonlyMap<string, () => ReactNode> {
+    return useMemo(
+        () =>
+            new Map(
+                rows.flatMap(r => {
+                    if (r.kind !== "code") return [];
+                    const node = highlightLine(r.path, r.text);
+                    return [[r.key, (): ReactNode => node] as const];
+                }),
+            ),
+        [rows],
+    );
 }
 
 function HunkRow({ text }: { readonly text: string }): ReactNode {
@@ -124,34 +162,30 @@ function HunkRow({ text }: { readonly text: string }): ReactNode {
 
 export function CodeTable({ rows, diff }: { readonly rows: readonly ViewRow[]; readonly diff: boolean }): ReactNode {
     const { comments } = useApp();
-    const { drag, setDrag, draft, setDraft } = useDrag(rows);
-    const threads = codeThreads(rows, comments);
+    const { drag, draft, clearDraft, onStart, onEnter } = useDrag(rows);
+    const highlights = useHighlights(rows);
+    const threads = useMemo(() => codeThreads(rows, comments), [rows, comments]);
     const dragged = new Set(drag === null ? [] : rangeRows(rows, drag.from, drag.to).map(r => r.key));
-    const focus = focusKey(rows);
+    const focus = useMemo(() => focusKey(rows), [rows]);
     const body = rows.map(row => {
         if (row.kind === "hunk") return <HunkRow key={row.key} text={row.text} />;
-        const range = dragged.has(row.key) || (draft?.keys.includes(row.key) ?? false);
         return [
             <Line
                 key={row.key}
                 row={row}
-                marked={{ range, ranged: threads.ranged.has(row.key), focus: row.key === focus }}
-                onStart={() => {
-                    setDraft(null);
-                    setDrag({ from: row, to: row });
-                }}
-                onEnter={() => {
-                    if (drag !== null) setDrag({ from: drag.from, to: row });
-                }}
+                code={highlights.get(row.key) ?? blank}
+                range={dragged.has(row.key) || (draft?.keys.includes(row.key) ?? false)}
+                ranged={threads.ranged.has(row.key)}
+                focus={row.key === focus}
+                onStart={onStart}
+                onEnter={onEnter}
             />,
             <ThreadRow
                 key={`${row.key}:thread`}
                 row={row}
                 comments={threads.byRow.get(row.key) ?? []}
                 draft={draft}
-                onDone={() => {
-                    setDraft(null);
-                }}
+                onDone={clearDraft}
             />,
         ];
     });

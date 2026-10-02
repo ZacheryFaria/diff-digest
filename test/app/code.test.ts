@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { diffView, fileView, type CodeLine, type ViewRow } from "../../src/app/code/rows";
-import { codeThreads, rangeRows, rangeTarget } from "../../src/app/code/select";
+import { codeThreads, dragTo, focusKey, rangeRows, rangeTarget } from "../../src/app/code/select";
 import type { Comment } from "../../src/lib/schemas";
 import type { FilePayload } from "../../src/lib/schemas-api";
 
@@ -81,10 +81,31 @@ describe("range selection", () => {
         });
     });
 
+    test("keeps the range when the drag passes over and ends on a removed row", () => {
+        if (one === undefined || TWO === undefined || two === undefined) throw new Error("rows");
+        let to = dragTo(one, one, TWO);
+        to = dragTo(one, to, two);
+        expect(to).toBe(TWO);
+        expect(rangeRows(rows, one, to).map(r => [r.rev, r.line])).toEqual([
+            ["head", 1],
+            ["head", 2],
+        ]);
+    });
+
     test("puts a range comment under its last row", () => {
         const c = comment({ kind: "code", path: "a.ts", rev: "head", line: 1, endLine: 2, text: "" });
         const threads = codeThreads(rows, [c]);
         expect([...threads.byRow.keys()]).toEqual([TWO?.key ?? ""]);
         expect(threads.ranged.size).toBe(2);
+    });
+});
+
+describe("focusKey", () => {
+    test("scrolls to the anchored hunk first, else to the first change", () => {
+        const anchored = diffView(DIFF, { start: 2, end: 2 });
+        expect(focusKey(anchored)).toBe(code(anchored)[0]?.key);
+        const plain = diffView(DIFF, {});
+        expect(focusKey(plain)).toBe(code(plain).find(r => r.classes.includes("added"))?.key);
+        expect(focusKey([])).toBeUndefined();
     });
 });

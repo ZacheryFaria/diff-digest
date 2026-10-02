@@ -1,6 +1,7 @@
 // Comments on one target, and the box to write a new one.
 import { useState, type ReactNode } from "react";
 import type { Comment, CommentTarget } from "../../lib/schemas";
+import { attempt } from "../state/attempt";
 import { useApp } from "../state/context";
 
 function who(c: Comment): string {
@@ -9,7 +10,10 @@ function who(c: Comment): string {
 }
 
 function CommentView({ comment }: { readonly comment: Comment }): ReactNode {
-    const { removeComment } = useApp();
+    const { removeComment, toast } = useApp();
+    const remove = (): void => {
+        attempt(toast, "Could not delete", () => removeComment(comment.id));
+    };
     const reply =
         comment.status === "shared" && comment.ref !== undefined ? (
             <a href={comment.ref} target="_blank" rel="noreferrer">
@@ -20,7 +24,7 @@ function CommentView({ comment }: { readonly comment: Comment }): ReactNode {
         );
     return (
         <div className={`comment ${comment.status}`}>
-            <button type="button" className="del" onClick={() => void removeComment(comment.id)}>
+            <button type="button" className="del" onClick={remove}>
                 Delete
             </button>
             <div className="who">{who(comment)}</div>
@@ -48,7 +52,7 @@ export function Composer({
     readonly target: CommentTarget;
     readonly onDone: () => void;
 }): ReactNode {
-    const { addComment } = useApp();
+    const { addComment, toast } = useApp();
     const [text, setText] = useState("");
     const save = (): void => {
         const body = text.trim();
@@ -56,7 +60,10 @@ export function Composer({
             onDone();
             return;
         }
-        void addComment(target, body).then(onDone);
+        attempt(toast, "Could not save", async () => {
+            await addComment(target, body);
+            onDone();
+        });
     };
     return (
         <div className="composer">

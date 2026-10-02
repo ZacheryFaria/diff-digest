@@ -4,15 +4,18 @@ import type { Block, ListItem } from "../../lib/md";
 import type { ModelBlock } from "../../lib/model";
 import type { Comment, CommentTarget } from "../../lib/schemas";
 import { Commentable, CommentableRow } from "../components/Commentable";
+import { tableRowLine } from "../comments-map";
 import { Inline } from "./Inline";
-import { richInline } from "./rich-inline";
 import { Mermaid } from "./Mermaid";
+import type { RichInline } from "./rich-inline";
 
 export interface BlockContext {
     /** Body line + offset = file line. */
     readonly offset: number;
     readonly blockAt: (fileLine: number) => ModelBlock | undefined;
     readonly commentsFor: (block: ModelBlock) => readonly Comment[];
+    /** The rich inline nodes of a text, with the body's reference links. */
+    readonly inline: (text: string) => readonly RichInline[];
 }
 
 function targetOf(block: ModelBlock): CommentTarget {
@@ -45,7 +48,7 @@ function Item({ item, ctx }: { readonly item: ListItem; readonly ctx: BlockConte
                         {item.checked === null ? null : (
                             <input type="checkbox" checked={item.checked} readOnly disabled />
                         )}
-                        <Inline nodes={richInline(item.ownText)} />
+                        <Inline nodes={ctx.inline(item.ownText)} />
                     </>
                 )}
             />
@@ -56,16 +59,15 @@ function Item({ item, ctx }: { readonly item: ListItem; readonly ctx: BlockConte
     );
 }
 
-function cellNodes(texts: readonly { readonly text: string }[]): readonly ReactNode[] {
-    return texts.map(c => createElement(Inline, { nodes: richInline(c.text) }));
+function cellNodes(texts: readonly { readonly text: string }[], ctx: BlockContext): readonly ReactNode[] {
+    return texts.map(c => createElement(Inline, { nodes: ctx.inline(c.text) }));
 }
 
 type TableBlock = Extract<Block, { kind: "table" }>;
 
 function Table({ block, ctx }: { readonly block: TableBlock; readonly ctx: BlockContext }): ReactNode {
-    // A table row's file line: the header and the delimiter come first.
-    const rows = block.rows.map((row, i) => ({ row, line: block.line + 2 + i }));
-    const head = cellNodes(block.header).map(cell => createElement("th", null, cell));
+    const rows = block.rows.map((row, i) => ({ row, line: tableRowLine(block, i) }));
+    const head = cellNodes(block.header, ctx).map(cell => createElement("th", null, cell));
     return (
         <table>
             <thead>{createElement("tr", null, ...head)}</thead>
@@ -77,8 +79,9 @@ function Table({ block, ctx }: { readonly block: TableBlock; readonly ctx: Block
                             key={r.line}
                             target={found === undefined ? null : targetOf(found)}
                             comments={found === undefined ? [] : ctx.commentsFor(found)}
-                            cells={() => cellNodes(r.row)}
+                            cells={() => cellNodes(r.row, ctx)}
                             width={block.header.length}
+                            warn={r.row.some(c => c.text.includes("⚠️"))}
                         />
                     );
                 })}
@@ -99,7 +102,7 @@ function TextBlock({
         <OnLine
             line={block.line}
             ctx={ctx}
-            render={() => createElement(tag, null, createElement(Inline, { nodes: richInline(block.text) }))}
+            render={() => createElement(tag, null, createElement(Inline, { nodes: ctx.inline(block.text) }))}
         />
     );
 }

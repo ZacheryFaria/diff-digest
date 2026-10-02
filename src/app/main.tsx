@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { digestIdFromPath, pageApi } from "./api";
+import { codeFromHash, digestIdFromPath, liveFromSearch, pageApi } from "./api";
 
 const root = document.querySelector("#root");
 const id = digestIdFromPath(location.pathname);
@@ -11,7 +11,12 @@ if (root !== null) {
             {id === null ? (
                 <p className="error">This page needs a digest id in its URL.</p>
             ) : (
-                <App api={pageApi(location.origin)} id={id} />
+                <App
+                    api={pageApi(location.origin)}
+                    id={id}
+                    follow={liveFromSearch(location.search)}
+                    initialCode={codeFromHash(location.hash)}
+                />
             )}
         </StrictMode>,
     );

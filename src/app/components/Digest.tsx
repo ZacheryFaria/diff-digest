@@ -1,17 +1,13 @@
 // The digest body, with comments on its blocks, and the comments whose block is gone.
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { parseBlocks } from "../../lib/md";
-import { buildModel, type ModelBlock } from "../../lib/model";
+import { buildModel } from "../../lib/model";
 import type { Comment } from "../../lib/schemas";
+import { assignDigestComments, blockIndex } from "../comments-map";
 import { BlockView, type BlockContext } from "../markdown/Blocks";
+import { linkDefs, richInline } from "../markdown/rich-inline";
 import { useApp } from "../state/context";
 import { Thread } from "./Thread";
-
-/** A digest comment belongs to the block with its cid, and with its line when it has one (equal cids). */
-function belongsTo(comment: Comment, block: ModelBlock): boolean {
-    const t = comment.target;
-    return t.kind === "digest" && t.cid === block.cid && (t.line === undefined || t.line === block.line);
-}
 
 /** A comment whose block is gone: a code comment links to its lines; a digest comment shows its old text. */
 function OtherComment({ comment }: { readonly comment: Comment }): ReactNode {
@@ -53,15 +49,21 @@ export interface DigestViewProps {
 export function DigestView({ body, lineOffset, comments }: DigestViewProps): ReactNode {
     const blocks = useMemo(() => parseBlocks(body), [body]);
     const model = useMemo(() => buildModel(body, lineOffset), [body, lineOffset]);
-    const ctx = useMemo((): BlockContext => {
-        const byLine = new Map(model.blocks.map(b => [b.line, b]));
-        return {
+    const links = useMemo(() => linkDefs(body), [body]);
+    const assigned = useMemo(() => assignDigestComments(model.blocks, comments), [model, comments]);
+    const ctx = useMemo(
+        (): BlockContext => ({
             offset: lineOffset,
-            blockAt: line => byLine.get(line),
-            commentsFor: block => comments.filter(c => belongsTo(c, block)),
-        };
-    }, [model, comments, lineOffset]);
-    const others = comments.filter(c => !model.blocks.some(b => belongsTo(c, b)));
+            blockAt: blockIndex(model.blocks),
+            commentsFor: block => assigned.byBlock.get(block.line) ?? [],
+            inline: text => richInline(text, links),
+        }),
+        [model, assigned, lineOffset, links],
+    );
+    const { others } = assigned;
+    useEffect(() => {
+        document.title = model.title?.text ?? "Diff digest";
+    }, [model]);
     return (
         <article id="content">
             {blocks.map(b => (

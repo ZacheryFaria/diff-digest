@@ -10,6 +10,7 @@ export function useActions(
     api: ApiClient,
     id: string,
     live: Live,
+    initialCode: CodeTarget | null,
 ): {
     readonly actions: AppActions;
     readonly code: CodeTarget | null;
@@ -17,7 +18,7 @@ export function useActions(
     readonly message: ToastMessage | null;
     readonly clearMessage: () => void;
 } {
-    const [code, setCode] = useState<CodeTarget | null>(null);
+    const [code, setCode] = useState<CodeTarget | null>(initialCode);
     const [message, setMessage] = useState<ToastMessage | null>(null);
     const { comments, reloadComments } = live;
     const clearMessage = useCallback(() => {
@@ -36,12 +37,13 @@ export function useActions(
                 await api.comments.remove({ id, commentId });
                 reloadComments();
             },
+            codePath: code?.path ?? null,
             openCode: setCode,
             toast: (text: string, url?: string) => {
                 setMessage({ text, url, at: Date.now() });
             },
         }),
-        [api, id, comments, reloadComments],
+        [api, id, comments, reloadComments, code],
     );
     return { actions, code, setCode, message, clearMessage };
 }

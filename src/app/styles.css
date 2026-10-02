@@ -191,16 +191,23 @@ code {
     padding: 1px 5px;
     border-radius: 4px;
 }
-a.anchor {
-    text-decoration: none;
+/* An anchor is a button that looks like inline code. */
+.anchor,
+.anchor:hover {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
     cursor: pointer;
 }
-a.anchor code {
+.anchor code {
     color: var(--accent);
     border: 1px solid var(--border-subtle);
 }
-a.anchor:hover code,
-a.anchor.active code {
+.anchor:hover code,
+.anchor.active code {
     background: var(--focus-alpha);
 }
 table {
@@ -237,8 +244,23 @@ pre {
     border-radius: var(--radius);
     overflow: auto;
 }
-pre.mermaid {
+.mermaid {
     text-align: center;
+}
+pre.mermaid-error {
+    border-left: 3px solid var(--danger);
+}
+pre.raw-html,
+code.raw-html {
+    color: var(--fg-muted);
+}
+.loading {
+    color: var(--fg-muted);
+    padding: var(--space-12);
+}
+.error {
+    color: var(--danger);
+    padding: var(--space-12);
 }
 ul,
 ol {
@@ -319,6 +341,11 @@ li > .cbtn {
 .comment.note {
     border-left: 2px solid var(--success);
     padding-left: var(--space-8);
+}
+.comment .body {
+    margin-top: var(--space-4);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 .comment .reply {
     margin-top: var(--space-4);
@@ -495,7 +522,7 @@ a.chip:hover {
     border-color: var(--warning);
     color: var(--warning);
 }
-.comment.posted {
+.comment.shared {
     opacity: 0.6;
 }
 #toast a,
