@@ -5,13 +5,14 @@
     "type": "module",
     "private": true,
     "scripts": {
-        "setup": "bun scripts/install.mjs",
+        "setup": "bun scripts/install.ts",
         "typecheck": "tsc -p .",
         "lint": "oxlint --type-aware src test scripts && bun scripts/check-suppressions.ts && prettier --check .",
         "format": "prettier --write .",
         "test": "bun test",
         "verify": "bun run typecheck && bun run lint && bun run test",
-        "cli": "bun src/cli/index.ts"
+        "cli": "bun src/cli/index.ts",
+        "build": "bun scripts/build.ts"
     },
     "engines": {
         "bun": ">=1.4.2"
