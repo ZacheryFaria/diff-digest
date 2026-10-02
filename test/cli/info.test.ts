@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { envelope, runCli } from "../helpers/cli";
 import { makeRepo, tempDir, type TestRepo } from "../helpers/repo";
 
@@ -23,6 +24,19 @@ describe("cli basics", () => {
         expect(runCli(["nope"], cwd, h).code).toBe(2);
         expect(runCli(["prompt"], cwd, h).code).toBe(2);
         expect(runCli(["format", "--bogus"], cwd, h).code).toBe(2);
+    });
+
+    test("a number flag that is not a number, or is negative, is a usage error (exit 2)", () => {
+        const { cwd, home: h } = setup();
+        for (const args of [
+            ["wait", "--timeout", "abc"],
+            ["wait", "--timeout=-1"],
+            ["server", "run", "--port", "x"],
+            ["server", "run", "--port=-5"],
+            ["server", "run", "--port", "1.5"],
+        ])
+            expect({ args, code: runCli(args, cwd, h).code }).toEqual({ args, code: 2 });
+        expect(existsSync(join(h, "server.json"))).toBe(false);
     });
 
     test("--json gives the error envelope and the exit code of the error", () => {
@@ -56,5 +70,14 @@ describe("cli basics", () => {
             data: { type: "object" },
         });
         expect(runCli(["schema", "--openapi"], cwd, h).stdout).toContain('"/comments/add"');
+        const names = envelope(runCli(["schema", "--json"], cwd, h));
+        if (!names.ok) throw new Error(JSON.stringify(names));
+        const list = z.array(z.string()).parse(names.data);
+        expect(list).toContain("config");
+        expect(list).toContain("server status");
+        expect(envelope(runCli(["schema", "server-status", "--json"], cwd, h))).toMatchObject({
+            ok: true,
+            data: { type: "object" },
+        });
     });
 });

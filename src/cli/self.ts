@@ -2,7 +2,8 @@
 import { ORPCError } from "@orpc/client";
 import { createApiClient, type ApiClient } from "../lib/client";
 import { DigestError } from "../lib/errors";
-import { isHealthy, readServerInfo } from "../server/lifecycle";
+import type { ServerInfo } from "../lib/schemas-api";
+import { ensureServer, isHealthy, readServerInfo, stopServer } from "../server/lifecycle";
 
 /** `[execPath, "server", "run"]` in the compiled binary; `[execPath, entry, "server", "run"]` from source. */
 export function selfCommand(): readonly string[] {
@@ -42,4 +43,13 @@ export async function serverCall<T>(call: () => Promise<T>): Promise<T> {
             cause: error,
         });
     }
+}
+
+/** Stops the server and starts a new one. SERVER_DOWN when the old one does not stop in time. */
+export async function restartServer(home: string): Promise<ServerInfo> {
+    if ((await stopServer(home)) === "timeout")
+        throw new DigestError("SERVER_DOWN", "The old server did not stop in time.", {
+            hint: "Run `diff-digest server stop`, then try again.",
+        });
+    return ensureServer(selfCommand(), home);
 }

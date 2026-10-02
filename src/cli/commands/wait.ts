@@ -6,7 +6,7 @@ import type { CliContext } from "../context";
 import { emit, jsonFlag } from "../output";
 import { resolveDigest } from "../ref";
 import { runningApi, serverCall } from "../self";
-import { idFlag, refPositional, type RefFlags } from "./shared";
+import { idFlag, parseSeconds, refPositional, type RefFlags } from "./shared";
 
 interface WaitFlags extends RefFlags {
     readonly timeout: number;
@@ -20,7 +20,7 @@ export const waitCommand = buildCommand({
             id: idFlag,
             timeout: {
                 kind: "parsed",
-                parse: Number,
+                parse: parseSeconds,
                 brief: "The longest wait in seconds",
                 default: String(MAX_WAIT_MS / 1000),
             },

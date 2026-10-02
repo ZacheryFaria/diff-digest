@@ -2,23 +2,25 @@
 import { existsSync, readFileSync } from "node:fs";
 import { buildCommand, buildRouteMap } from "@stricli/core";
 import { listDigests, registryPath } from "../../lib/registry";
-import { ensureServer, isHealthy, readServerInfo, serverLogPath, stopServer } from "../../server/lifecycle";
+import { isHealthy, readServerInfo, serverLogPath, stopServer } from "../../server/lifecycle";
 import { runServer } from "../../server/run";
 import type { CliContext } from "../context";
 import { emit, jsonFlag } from "../output";
 import { ServerStatusOutputSchema, StopOutputSchema, TextOutputSchema } from "../outputs";
-import { selfCommand } from "../self";
-import type { JsonFlags } from "./shared";
+import { restartServer } from "../self";
+import { parsePort, type JsonFlags } from "./shared";
 
 const LOG_LINES = 200;
 
 const run = buildCommand({
     docs: { brief: "Run the server in the foreground (`serve` starts it in the background)" },
     parameters: {
-        flags: { port: { kind: "parsed", parse: Number, brief: "The port (0: any free port)", default: "0" } },
+        flags: { port: { kind: "parsed", parse: parsePort, brief: "The port (0: any free port)", default: "0" } },
     },
     func(this: CliContext, flags: { readonly port: number }) {
-        runServer(this.home, flags.port);
+        const info = runServer(this.home, flags.port);
+        // One start line, so that server.log shows each start.
+        this.out.print(`diff-digest server ${info.version} pid ${info.pid} port ${info.port}`);
     },
 });
 
@@ -56,8 +58,7 @@ const restart = buildCommand({
             this.out,
             { json: flags.json, schema: ServerStatusOutputSchema, text: s => JSON.stringify(s, null, 2) },
             async () => {
-                await stopServer(this.home);
-                const info = await ensureServer(selfCommand(), this.home);
+                const info = await restartServer(this.home);
                 return { running: true, info, digests: listDigests(registryPath(this.home)) };
             },
         );

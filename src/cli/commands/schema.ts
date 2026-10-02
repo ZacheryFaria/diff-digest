@@ -28,19 +28,22 @@ export const schemaCommand = buildCommand({
             {
                 json: flags.json,
                 schema: SchemaOutputSchema,
-                text: s => (typeof s === "string" ? s : JSON.stringify(s, null, 2)),
+                // The list of names prints one name per line.
+                text: s => (Array.isArray(s) ? s.join("\n") : JSON.stringify(s, null, 2)),
             },
             () => {
                 if (flags.openapi) {
                     const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
                     return generator.generate(contract, { info: { title: "diff-digest", version: VERSION } });
                 }
-                if (name === undefined) return Object.keys(OUTPUTS).join("\n");
-                if (!isCommandName(name))
+                if (name === undefined) return Object.keys(OUTPUTS);
+                // `server-status` is the same as `server status`.
+                const command = isCommandName(name) ? name : name.replaceAll("-", " ");
+                if (!isCommandName(command))
                     throw new DigestError("NOT_FOUND", `No command is named ${name}.`, {
                         hint: "Run `diff-digest schema` for the names.",
                     });
-                return z.toJSONSchema(OUTPUTS[name], { io: "output", unrepresentable: "any" });
+                return z.toJSONSchema(OUTPUTS[command], { io: "output", unrepresentable: "any" });
             },
         );
     },

@@ -44,3 +44,18 @@ export const baseFlag = {
 export interface BaseFlags extends JsonFlags {
     readonly base?: string;
 }
+
+/** A number of seconds: finite and not negative. A bad value is a usage error (exit 2). */
+export function parseSeconds(text: string): number {
+    const value = Number(text);
+    if (text.trim() === "" || !Number.isFinite(value) || value < 0) throw new Error(`Not a number of seconds: ${text}`);
+    return value;
+}
+
+/** A TCP port: an integer from 0 (any free port) to 65535. A bad value is a usage error (exit 2). */
+export function parsePort(text: string): number {
+    const value = Number(text);
+    if (text.trim() === "" || !Number.isInteger(value) || value < 0 || value > 65_535)
+        throw new Error(`Not a port: ${text}`);
+    return value;
+}

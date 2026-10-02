@@ -37,6 +37,8 @@ describe("server commands", () => {
         const { url, id } = ServeOutputSchema.parse(served.data);
         expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/d\/[0-9a-z]{8}\/$/u);
         expect(envelope(runCli(["serve", "--json"], s.cwd, s.home))).toMatchObject({ ok: true, data: { url } });
+        const log = runCli(["server", "logs"], s.cwd, s.home).stdout;
+        expect(log).toMatch(/^diff-digest server \S+ pid \d+ port \d+$/mu);
         const status = envelope(runCli(["server", "status", "--json"], s.cwd, s.home));
         expect(status).toMatchObject({ ok: true, data: { running: true, digests: [{ id }] } });
 
