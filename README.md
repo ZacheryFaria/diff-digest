@@ -142,6 +142,6 @@ src/server/   the background server (oRPC over Bun.serve)
 src/app/      the React UI
 src/lib/      the shared code: schemas, git, digest, lint, fmt, backends
 skills/       the Claude Code skill
-docs/         the format doc, the spec, and the plans
+docs/         the format doc and the spec
 scripts/      build, setup, and the suppression check
 ```
