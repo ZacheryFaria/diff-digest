@@ -36,6 +36,7 @@ body {
 }
 body {
     margin: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -111,6 +112,13 @@ button:disabled {
     color: var(--success);
 }
 
+/* Only the panes scroll: the page itself has a fixed height. */
+#root {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
 #layout {
     flex: 1;
     display: flex;
@@ -169,6 +177,8 @@ button:disabled {
 #code-body {
     flex: 1;
     overflow: auto;
+    /* The comment threads use the pane width (cqi), not the width of the longest code line. */
+    container-type: inline-size;
     font: 12.5px/1.5 var(--font-mono);
 }
 
@@ -471,9 +481,18 @@ li > .cbtn {
     color: var(--accent);
 }
 .code-thread td {
-    padding: 0 var(--space-12) 0 60px;
+    padding: 0;
     white-space: normal;
     font-family: var(--font-sans);
+}
+/* A thread and its composer stay in view and keep the pane width when the code scrolls left and right. */
+.code-thread td > .thread,
+.code-thread td > .composer {
+    position: sticky;
+    left: 0;
+    box-sizing: border-box;
+    width: min(100cqi, 760px);
+    padding: 0 var(--space-12) 0 60px;
 }
 .diff-add {
     background: var(--add-alpha);

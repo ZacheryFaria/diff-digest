@@ -1,4 +1,5 @@
-// The code rows with line and range comments: press + on a line and drag to another line on the same side.
+// The code rows with line and range comments: press + or a line number, then drag or shift-click to another
+// line on the same side (up or down).
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Comment, CommentTarget } from "../../lib/schemas";
 import { Composer, Thread } from "../components/Thread";
@@ -27,7 +28,8 @@ interface LineProps {
     readonly range: boolean;
     readonly ranged: boolean;
     readonly focus: boolean;
-    readonly onStart: (row: CodeLine) => void;
+    /** `extend`: a shift-click, so the range goes from the last clicked line to this one. */
+    readonly onStart: (row: CodeLine, extend: boolean) => void;
     readonly onEnter: (row: CodeLine) => void;
 }
 
@@ -46,21 +48,30 @@ const Line = memo(function Line({ row, code, range, ranged, focus, onStart, onEn
                 onEnter(row);
             }}
         >
-            <td className="ln">
-                <button
-                    type="button"
-                    className="cbtn"
-                    title="Comment"
-                    onMouseDown={e => {
-                        e.preventDefault();
-                        onStart(row);
-                    }}
-                >
+            <td
+                className="ln"
+                title="Comment (shift-click another line for a range)"
+                onMouseDown={e => {
+                    e.preventDefault();
+                    onStart(row, e.shiftKey);
+                }}
+            >
+                <button type="button" className="cbtn" title="Comment">
                     +
                 </button>
                 {first}
             </td>
-            {second === undefined ? null : <td className="ln ln2">{second}</td>}
+            {second === undefined ? null : (
+                <td
+                    className="ln ln2"
+                    onMouseDown={e => {
+                        e.preventDefault();
+                        onStart(row, e.shiftKey);
+                    }}
+                >
+                    {second}
+                </td>
+            )}
             <td>
                 {row.sign === null ? null : <span className="sign">{row.sign}</span>}
                 {code()}
@@ -92,13 +103,15 @@ interface DragState {
     readonly drag: Drag | null;
     readonly draft: Draft | null;
     readonly clearDraft: () => void;
-    readonly onStart: (row: CodeLine) => void;
+    readonly onStart: (row: CodeLine, extend: boolean) => void;
     readonly onEnter: (row: CodeLine) => void;
 }
 
 function useDrag(rows: readonly ViewRow[]): DragState {
     const [drag, setDrag] = useState<Drag | null>(null);
     const [draft, setDraft] = useState<Draft | null>(null);
+    // The last clicked line: a shift-click makes a range from it.
+    const anchor = useRef<CodeLine | null>(null);
     useEffect(() => {
         const up = (): void => {
             if (drag === null) return;
@@ -116,8 +129,14 @@ function useDrag(rows: readonly ViewRow[]): DragState {
     const clearDraft = useCallback(() => {
         setDraft(null);
     }, []);
-    const onStart = useCallback((row: CodeLine) => {
+    const onStart = useCallback((row: CodeLine, extend: boolean) => {
         setDraft(null);
+        const from = extend ? anchor.current : null;
+        if (from !== null && dragTo(from, from, row) === row) {
+            setDrag({ from, to: row });
+            return;
+        }
+        anchor.current = row;
         setDrag({ from: row, to: row });
     }, []);
     // A row on the other side does not move the end, so the range stays on the side where it started.
