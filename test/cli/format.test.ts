@@ -54,7 +54,7 @@ describe("lint, check, fmt", () => {
         const md = readFileSync(s.mdPath, "utf8");
         expect(md).not.toContain("## Questions");
         expect(md).toContain("`a.ts:2`");
-        expect(readComments(s.mdPath)).toMatchObject([{ author: "agent", status: "note", body: "Why TWO?" }]);
+        expect(readComments(s.mdPath)).toMatchObject([{ author: "agent", status: "note", body: "Q: Why TWO?" }]);
         expect(runCli(["fmt", "--check"], s.cwd, s.home).code).toBe(0);
     });
 });
