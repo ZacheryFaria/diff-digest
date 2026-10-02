@@ -1,7 +1,7 @@
 // Commands for the review: comments, the UI server, and waiting for clicks. Each loads its code when it runs.
 import { buildCommand } from "@stricli/core";
 import { MAX_WAIT_MS } from "../../lib/limits";
-import { COMMENT_STATUSES, idFlag, jsonFlag, parseSeconds, refFlag, refPositional } from "../commands/shared";
+import { COMMENT_STATUSES, idFlag, jsonFlag, listFlag, parseSeconds, refFlag, refPositional } from "../commands/shared";
 import { serverRoutes } from "./server";
 
 const targetedFlags = { json: jsonFlag, id: idFlag, ref: refFlag } as const;
@@ -35,6 +35,12 @@ export const reviewRoutes = {
                     brief: "Print the open user comments as one Markdown comment",
                     default: false,
                 },
+                publish: {
+                    kind: "boolean",
+                    brief: "Post the open user comments as one review on the backends",
+                    default: false,
+                },
+                to: listFlag("The backends for --publish (default: publishTo in the config)"),
             },
             positional: refPositional,
         },
@@ -63,6 +69,32 @@ export const reviewRoutes = {
             },
         },
         loader: async () => (await import("../commands/comments")).mark,
+    }),
+    publish: buildCommand({
+        docs: { brief: "Post or update the digest on its backends (refuses lint errors unless --force)" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                id: idFlag,
+                to: listFlag("The backends (default: publishTo in the config)"),
+                dryRun: { kind: "boolean", brief: "Print what would be posted, and post nothing", default: false },
+                force: { kind: "boolean", brief: "Publish even with lint errors", default: false },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/publish")).publish,
+    }),
+    pull: buildCommand({
+        docs: { brief: "Write the working copy from the first backend that has the digest for a target" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                from: listFlag("The backends to try, in order (default: publishTo in the config)"),
+                force: { kind: "boolean", brief: "Replace a working copy that exists", default: false },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/publish")).pull,
     }),
     serve: buildCommand({
         docs: { brief: "Start the review server if it is not running, register the digest, and print its URL" },

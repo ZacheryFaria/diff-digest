@@ -7,11 +7,14 @@ import type { CliContext } from "../context";
 import { emit } from "../output";
 import { OkOutputSchema, TextOutputSchema } from "../outputs";
 import { resolveDigest } from "../ref";
+import { publishComments } from "./publish";
 import { COMMENT_STATUSES as STATUSES, type RefFlags } from "./shared";
 
 export interface CommentsFlags extends RefFlags {
     readonly status: string;
     readonly markdown: boolean;
+    readonly publish: boolean;
+    readonly to?: string;
 }
 
 function isStatus(value: string): value is Comment["status"] {
@@ -39,6 +42,10 @@ function commentLine(c: Comment): string {
 export async function comments(this: CliContext, flags: CommentsFlags, ref?: string): Promise<void> {
     const list = (): Promise<readonly Comment[]> =>
         localApi(this.home).comments.list({ id: resolveDigest({ ref, id: flags.id }, this).id });
+    if (flags.publish) {
+        await publishComments.call(this, flags, ref);
+        return;
+    }
     if (flags.markdown) {
         await emit(this.out, { json: flags.json, schema: TextOutputSchema, text: t => t }, async () =>
             reviewMarkdown(await list()),

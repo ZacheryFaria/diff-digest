@@ -8,6 +8,7 @@ import {
     LintIssueSchema,
     ShaSchema,
 } from "../lib/schemas";
+import { PublishReportSchema, PullReportSchema } from "../lib/publish/schemas";
 import { CheckResultSchema, RegistryEntrySchema, ServerInfoSchema, WaitResultSchema } from "../lib/schemas-api";
 import { TargetSchema } from "./target";
 
@@ -91,6 +92,8 @@ export const OUTPUTS = {
     note: CommentSchema,
     mark: OkOutputSchema,
     serve: ServeOutputSchema,
+    publish: PublishReportSchema,
+    pull: PullReportSchema,
     wait: WaitResultSchema,
     "server status": ServerStatusOutputSchema,
     "server stop": StopOutputSchema,

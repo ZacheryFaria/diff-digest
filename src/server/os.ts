@@ -4,6 +4,7 @@ import { contract } from "../lib/contract";
 import { DigestError } from "../lib/errors";
 import { openDigest, type OpenDigest } from "../lib/payload";
 import { findDigest, registryPath } from "../lib/registry";
+import type { BackendDeps } from "../lib/backends/types";
 import type { Action, ActionStatus, RegistryEntry, ServerEvent, WaitResult } from "../lib/schemas-api";
 
 /** What procedures use from the event bus (`EventBus` implements it). */
@@ -22,6 +23,8 @@ export interface Actions {
 
 export interface ServerContext {
     readonly home: string;
+    /** Processes and files for the backends (tests give a fake). */
+    readonly deps: BackendDeps;
     readonly bus: Bus;
     readonly actions: Actions;
     /** The current time as an ISO string (a function, so tests can fix it). */

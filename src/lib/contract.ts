@@ -1,6 +1,7 @@
 // The HTTP contract (spec §7). The server implements it; the CLI and the UI call it. Pure.
 import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
+import { BackendInfoSchema, PublishReportSchema } from "./publish/schemas";
 import { MAX_WAIT_MS } from "./limits";
 import { CommentSchema, CommentsFileSchema, CommentTargetSchema, LintIssueSchema } from "./schemas";
 import {
@@ -79,6 +80,24 @@ export const contract = {
         status: oc.input(IdSchema).output(ActionStatusSchema),
     },
     events: oc.input(IdSchema).output(eventIterator(ServerEventSchema)),
+    publish: {
+        digest: oc
+            .input(
+                z
+                    .strictObject({
+                        id: z.string().min(1),
+                        to: z.array(z.string().min(1)).readonly(),
+                        force: z.boolean(),
+                        dryRun: z.boolean(),
+                    })
+                    .readonly(),
+            )
+            .output(PublishReportSchema),
+        review: oc
+            .input(z.strictObject({ id: z.string().min(1), to: z.array(z.string().min(1)).readonly() }).readonly())
+            .output(PublishReportSchema),
+        backends: oc.input(IdSchema).output(z.array(BackendInfoSchema).readonly()),
+    },
 };
 
 export type Contract = typeof contract;

@@ -68,3 +68,20 @@ export function parsePort(text: string): number {
         throw new Error(`Not a port: ${text}`);
     return value;
 }
+
+/** A flag that takes a comma list (`--to github,notes`). */
+export function listFlag(brief: string): {
+    readonly kind: "parsed";
+    readonly parse: StringConstructor;
+    readonly brief: string;
+    readonly optional: true;
+} {
+    return { kind: "parsed", parse: String, brief, optional: true };
+}
+
+export function splitList(value: string | undefined): string[] {
+    return (value ?? "")
+        .split(",")
+        .map(v => v.trim())
+        .filter(v => v !== "");
+}
