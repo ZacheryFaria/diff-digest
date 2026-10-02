@@ -35,13 +35,13 @@ function startOnPort(options: ServerOptions): RunningServer {
 }
 
 /** Starts the server, writes server.json, and returns what it wrote. */
-export function runServer(home: string, port = 0): ServerInfo {
+export function runServer(home: string, port = 0, development = false): ServerInfo {
     const stop = (): void => {
         // A newer server can own server.json now. Remove it only when it still names this process.
         if (readServerInfo(home)?.pid === process.pid) rmSync(serverInfoPath(home), { force: true });
         void server.stop().finally(() => process.exit(0));
     };
-    const server = startOnPort({ port, home, onIdle: stop });
+    const server = startOnPort({ port, home, onIdle: stop, development });
     writeAtomic(lastPortPath(home), `${server.port}\n`);
     const info = { pid: process.pid, port: server.port, version: VERSION, startedAt: new Date().toISOString() };
     writeAtomic(serverInfoPath(home), `${JSON.stringify(info, null, 2)}\n`);

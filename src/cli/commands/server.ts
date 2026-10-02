@@ -10,8 +10,8 @@ import { ServerStatusOutputSchema, StopOutputSchema, TextOutputSchema } from "..
 import { restartServer } from "../self";
 import { LOG_LINES, type JsonFlags } from "./shared";
 
-export function serverRun(this: CliContext, flags: { readonly port: number }): void {
-    const info = runServer(this.home, flags.port);
+export function serverRun(this: CliContext, flags: { readonly port: number; readonly dev: boolean }): void {
+    const info = runServer(this.home, flags.port, flags.dev);
     // One start line, so that server.log shows each start.
     this.out.print(`diff-digest server ${info.version} pid ${info.pid} port ${info.port}`);
 }

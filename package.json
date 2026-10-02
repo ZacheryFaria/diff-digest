@@ -12,7 +12,8 @@
         "test": "bun test",
         "verify": "bun run typecheck && bun run lint && bun run test",
         "cli": "bun src/cli/index.ts",
-        "build": "bun scripts/build.ts"
+        "build": "bun scripts/build.ts",
+        "dev": "bun --hot src/cli/index.ts server run --dev"
     },
     "engines": {
         "bun": ">=1.4.2"

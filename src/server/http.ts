@@ -19,6 +19,8 @@ export interface ServerOptions {
     /** Called when the server has had no requests, streams, or waits for `idleMs`. */
     readonly onIdle: () => void;
     readonly idleMs?: number;
+    /** `server run --dev`: Bun bundles the page on each load, with hot reload. */
+    readonly development?: boolean;
 }
 
 export interface RunningServer {
@@ -106,7 +108,7 @@ export function startServer(options: ServerOptions): RunningServer {
         idleTimeout: 0,
         // The page and its `/_bun/` assets carry no data, so they are not behind the Host check.
         routes: { "/d/:id/": page },
-        development: false,
+        development: options.development === true ? { hmr: true } : false,
         async fetch(request) {
             lastRequest = Date.now();
             if (!isAllowed(request.headers.get("host"), request.headers.get("origin"), server.port ?? 0)) {

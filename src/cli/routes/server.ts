@@ -12,6 +12,7 @@ export const serverRoutes = buildRouteMap({
             parameters: {
                 flags: {
                     port: { kind: "parsed", parse: parsePort, brief: "The port (0: any free port)", default: "0" },
+                    dev: { kind: "boolean", brief: "Bundle the page on each load, with hot reload", default: false },
                 },
             },
             loader: async () => (await import("../commands/server")).serverRun,
