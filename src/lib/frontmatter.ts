@@ -35,6 +35,9 @@ export function parseDigest(input: string): ParsedDigest {
 }
 
 export function serializeDigest(frontmatter: Readonly<Frontmatter>, body: string): string {
-    const yaml = Bun.YAML.stringify(FrontmatterSchema.parse(frontmatter), null, 2).trimEnd();
+    // Bun.YAML writes an empty map on its own line (`meta:` then `  {}`); one line is easier to read.
+    const yaml = Bun.YAML.stringify(FrontmatterSchema.parse(frontmatter), null, 2)
+        .trimEnd()
+        .replaceAll(/^(\w+): *\n +\{\}$/gmu, "$1: {}");
     return `---\n${yaml}\n---\n${body.startsWith("\n") ? body : `\n${body}`}`;
 }

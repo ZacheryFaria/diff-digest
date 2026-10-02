@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiClient } from "../../lib/client";
 import type { Comment } from "../../lib/schemas";
 import type { ActionStatus, DigestPayload } from "../../lib/schemas-api";
-import { latestOnly, trailing, type Timers } from "./refresh";
+import { latestOnly, trackedTimers, trailing, type Timers } from "./refresh";
 
 /** One change can give two or three events of the same type; fetch once, this long after the last one. */
 export const REFRESH_MS = 120;
@@ -44,6 +44,8 @@ interface Loader {
     /** Fetch after a burst of events. */
     readonly digest: () => void;
     readonly comments: () => void;
+    /** Cancel the fetches that wait for their delay. */
+    readonly cancel: () => void;
 }
 
 function loader(api: ApiClient, id: string, on: Handlers): Loader {
@@ -58,11 +60,13 @@ function loader(api: ApiClient, id: string, on: Handlers): Loader {
     const commentsNow = (): void => {
         comments(() => api.comments.list({ id }));
     };
+    const timers = trackedTimers(TIMERS);
     return {
         digestNow,
         commentsNow,
-        digest: trailing(digestNow, REFRESH_MS, TIMERS),
-        comments: trailing(commentsNow, REFRESH_MS, TIMERS),
+        digest: trailing(digestNow, REFRESH_MS, timers),
+        comments: trailing(commentsNow, REFRESH_MS, timers),
+        cancel: timers.clearAll,
     };
 }
 
@@ -108,8 +112,10 @@ function subscribe(api: ApiClient, id: string, on: Handlers, follow: boolean): S
     return {
         stop: () => {
             stop.abort();
+            load.cancel();
         },
-        reloadComments: load.comments,
+        // The writer's own reload is at once; the events of the same change come later and give one fetch.
+        reloadComments: load.commentsNow,
     };
 }
 

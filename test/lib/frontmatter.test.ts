@@ -19,6 +19,12 @@ describe("frontmatter", () => {
         expect(parseDigest(md)).toEqual({ frontmatter: FM, body: "\n# Title\n" });
     });
 
+    test("writes an empty meta on one line, and reads it back", () => {
+        const md = serializeDigest({ ...FM, meta: {} }, "# Title\n");
+        expect(md).toContain("\nmeta: {}\n");
+        expect(parseDigest(md).frontmatter.meta).toEqual({});
+    });
+
     test("reads a digest with CRLF line ends", () => {
         const md = serializeDigest(FM, "# Title\n").replaceAll("\n", "\r\n");
         expect(parseDigest(md)).toEqual({ frontmatter: FM, body: "\n# Title\n" });

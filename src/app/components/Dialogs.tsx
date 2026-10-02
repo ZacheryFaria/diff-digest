@@ -1,5 +1,5 @@
 // The publish dialog and the post-comments dialog: choose backends, preview, then post.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { PublishReport } from "../../lib/publish/schemas";
 import { reviewMarkdown } from "../../lib/review";
 import { isEmptyReport, reportSummary } from "../publish-report";
@@ -66,10 +66,25 @@ function useEscape(onClose: () => void): void {
     }, [onClose]);
 }
 
-/** A click on the overlay (not in the dialog) closes the dialog. */
-function overlayClick(onClose: () => void): (e: { readonly target: unknown; readonly currentTarget: unknown }) => void {
-    return e => {
-        if (e.target === e.currentTarget) onClose();
+interface OverlayHandlers {
+    readonly onMouseDown: (e: { readonly target: unknown; readonly currentTarget: unknown }) => void;
+    readonly onClick: (e: { readonly target: unknown; readonly currentTarget: unknown }) => void;
+}
+
+/**
+ * A click on the overlay (not in the dialog) closes the dialog. The press must also be on the overlay, so a
+ * text selection in the dialog that ends outside it does not close the dialog.
+ */
+function useOverlayClose(onClose: () => void): OverlayHandlers {
+    const pressed = useRef(false);
+    return {
+        onMouseDown: e => {
+            pressed.current = e.target === e.currentTarget;
+        },
+        onClick: e => {
+            if (pressed.current && e.target === e.currentTarget) onClose();
+            pressed.current = false;
+        },
     };
 }
 
@@ -168,9 +183,10 @@ export function PublishDialog({ onClose }: { readonly onClose: () => void }): Re
     const { chosen, toggle } = useChosen();
     const { preview, busy, publish } = usePublish(onClose);
     const [force, setForce] = useState(false);
+    const overlay = useOverlayClose(onClose);
     useEscape(onClose);
     return (
-        <div className="overlay" role="dialog" aria-label="Publish the digest" onClick={overlayClick(onClose)}>
+        <div className="overlay" role="dialog" aria-label="Publish the digest" {...overlay}>
             <div className="dialog">
                 <div className="dialog-head">
                     <b>Publish the digest</b> <span className="dialog-note">{BACKEND_NOTE}</span>
@@ -209,6 +225,7 @@ export function PostCommentsDialog({ onClose }: { readonly onClose: () => void }
     const { chosen, toggle } = useChosen();
     const { busy, run } = useBusy();
     const report = useReport(onClose);
+    const overlay = useOverlayClose(onClose);
     useEscape(onClose);
     const post = (): void => {
         run("Could not post", async () => {
@@ -216,7 +233,7 @@ export function PostCommentsDialog({ onClose }: { readonly onClose: () => void }
         });
     };
     return (
-        <div className="overlay" role="dialog" aria-label="Post the comments" onClick={overlayClick(onClose)}>
+        <div className="overlay" role="dialog" aria-label="Post the comments" {...overlay}>
             <div className="dialog">
                 <div className="dialog-head">
                     <b>Post your open comments as one review</b> <span className="dialog-note">{BACKEND_NOTE}</span>

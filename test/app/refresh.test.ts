@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { latestOnly, trailing, type Timers } from "../../src/app/state/refresh";
+import { latestOnly, trailing, type Timers, trackedTimers } from "../../src/app/state/refresh";
 
 /** Timers that run when the test says so. */
 function fakeTimers(): Timers<number> & { readonly advance: (ms: number) => void } {
@@ -67,6 +67,22 @@ describe("trailing", () => {
         call();
         timers.advance(120);
         expect(count.runs()).toBe(2);
+    });
+});
+
+describe("trackedTimers", () => {
+    test("clearAll cancels the fetches that still wait", () => {
+        const timers = fakeTimers();
+        const tracked = trackedTimers(timers);
+        const count = counter();
+        const call = trailing(count.run, 120, tracked);
+        call();
+        tracked.clearAll();
+        timers.advance(200);
+        expect(count.runs()).toBe(0);
+        call();
+        timers.advance(120);
+        expect(count.runs()).toBe(1);
     });
 });
 

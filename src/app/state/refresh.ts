@@ -43,3 +43,26 @@ export function latestOnly<T>(
         );
     };
 }
+
+/** Timers that remember their pending handles, so one call clears them all (when the page stops). */
+export function trackedTimers<H>(timers: Timers<H>): Timers<H> & { readonly clearAll: () => void } {
+    const pending = new Set<H>();
+    return {
+        set: (run, ms) => {
+            const handle = timers.set(() => {
+                pending.delete(handle);
+                run();
+            }, ms);
+            pending.add(handle);
+            return handle;
+        },
+        clear: handle => {
+            pending.delete(handle);
+            timers.clear(handle);
+        },
+        clearAll: () => {
+            for (const handle of pending) timers.clear(handle);
+            pending.clear();
+        },
+    };
+}
