@@ -6,13 +6,9 @@ A digest is a **change spec**. It is much smaller than the diff, and a reviewer 
 
 ## Layout
 
-````markdown
----
-branch: <branch>
-base: <short sha>
-head: <short sha>
----
+The tool writes the frontmatter (`diff-digest init`). Do not edit it. You write the body:
 
+````markdown
 # <What changed, in one line>
 
 **Generated (not reviewed):** `package-lock.json`
@@ -49,16 +45,17 @@ flowchart LR
 |---|---|---|
 ````
 
-## Rules
+## Guidance
+
+`diff-digest lint` checks the rules in the table below. This guidance is what lint cannot check.
 
 - **No intent.** Do not guess why the author made the change. Describe only what the code does.
 - **Generated files.** Only list them. Never describe them. `hunks` marks these files as `generated`: lockfiles, snapshots, `__generated__/`, generated protos, and minified or map files. Also `.gitattributes` (`linguist-generated`, `linguist-vendored`) and the `generated` patterns in `~/.diff-digest/config.json`. Binary and LFS files are marked `binary`; list them the same way.
 - **Do not mention** import changes, reordered code, or moved code that is otherwise identical.
-- **Architecture diagram.** Show modules, components, stores, and data flow. Do not show functions. Keep it under 12 nodes. If the change touches only one module, leave the diagram out.
-- **Numbered changed nodes.** Give each changed node `:::changed` and a circled number (①, ②, ③, …) at the start of its label. Number the nodes in the order of the data flow. Below the diagram, write one list item for each number, in the same order, that starts with the same circled number. Unchanged nodes get no number.
+- **Architecture diagram.** Show modules, components, stores, and data flow. Do not show functions. If the change touches only one module, leave the diagram out. Number the changed nodes in the order of the data flow.
 - **Changes.** One bullet for each change. Use this form: *what it was → what it is, and what moved where*, with anchors. Put renames here, not in a separate section. If a bullet is about a numbered node, start it with that node's number, so the reader can go from the diagram to the code.
 - **Tables.** Use a table when the behavior depends on a combination of inputs. Use real cases as rows and columns, for example user role × page section. Do not use boolean formulas. Put the values as `before → after` in the cells, or in Before and After columns. Put ⚠️ where a user can see a change or where a change is not safe. Keep unchanged rows when they prove that behavior is equivalent.
 - **Anchors.** Write each anchor as a code span: `path:line` or `path:start-end`. Use line numbers in the new file. A unique path suffix is enough. Anchors open in the code pane of the UI.
 - **Tests.** For each added or changed test, give the behavior that it proves and why that case was chosen (a regression, an edge case, or an invariant). Put each ⚠️ behavior that has no test in Test gaps.
-- **No questions.** Do not put a Questions section in the digest. Try to answer each question from the code first. Add each question that the code cannot answer as an agent note on the related block (`diff-digest note`). Notes show in the UI and are not posted to the PR.
+- **Questions.** Try to answer each question from the code first. Add each question that the code cannot answer as an agent note on the related block (`diff-digest note --ref <ref> "<block text>" "Q: <question>"`). Notes show in the UI and are not published.
 - **Size.** Use tables, one-line bullets, and anchors, not paragraphs. For diffs of more than 500 lines, the target is 25% or less of the reviewable diff lines.

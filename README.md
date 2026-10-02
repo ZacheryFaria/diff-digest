@@ -1,6 +1,6 @@
 # diff-digest
 
-This tool makes a git diff into a short **change spec** (Markdown) that a person can review. The spec goes in a PR comment. A local UI shows the spec beside the code, collects comments, and sends them back to a Claude Code session.
+This tool makes a git diff into a short **change spec** (Markdown) that a person can review. A local UI shows the spec beside the code, collects comments, and sends them back to a Claude Code session. You can publish the spec to a PR comment or to a local notes folder (for example an Obsidian vault). Any Markdown viewer shows it correctly: GitHub, GitLab, glow, and Obsidian.
 
 The test for a good digest: give the digest and the base commit to a new agent of the same model class. That agent must be able to make a change that behaves the same way. The code does not need to be identical.
 
@@ -9,12 +9,12 @@ The test for a good digest: give the digest and the base commit to a new agent o
 Run `/diff-digest [pr-url | #pr | branch | commit | a..b]` in Claude Code. With no argument, the target is the current branch.
 
 1. **Code.** If the target's branch is checked out, the digest reads the working tree, so uncommitted changes count. If it is not, the digest is pinned to the head commit, and you do not need to check it out.
-2. **Digest.** Claude uses a local digest if one exists. If not, it pulls the digest from the PR comment. If there is none, it generates one and asks whether to post it to the PR (if one exists). A digest that is older than the code gets a warning, with a list of the hunks that it does not explain.
-3. **UI.** Comment on digest blocks and code lines, then do one of these:
+2. **Digest.** Claude uses the local working copy if one exists. If not, it pulls the digest from a backend (the PR comment, or the notes folder). If there is none, it generates one, and asks whether to publish it. A digest that is older than the code gets a warning, with a list of the hunks that it does not explain.
+3. **UI.** Comment on digest blocks, table rows, and code lines, then do one of these:
    - **Apply comments**: Claude acts on them now. It edits the digest, answers questions, or changes code (it asks before it checks out a branch).
-   - **Post comments…** (with a PR): preview and edit the comments as one Markdown comment, then post it.
-   - **Post digest** (with a PR): post or update the digest comment.
    - **Review with agent**: a new agent checks the digest against the code and edits it.
+   - **Post comments…**: preview your open comments as one Markdown review, choose the backends, and post it.
+   - **Publish…**: choose the backends, preview, and publish the digest.
 
 So the author runs `/diff-digest` on their branch, and a reviewer runs `/diff-digest <pr-url>`.
 
@@ -26,41 +26,29 @@ So the author runs `/diff-digest` on their branch, and a reviewer runs `/diff-di
 - **Tables**: behavior as `before → after` for each real case. ⚠️ marks a change that a user can see or that is not safe.
 - **Tests and test gaps**: what each test proves and why that case was chosen. Changed behavior that has no test.
 
-Questions that the code cannot answer are not in the digest. Claude adds them as agent notes on the related blocks, so you see them in the UI, and they are not posted to the PR.
+Questions that the code cannot answer are not in the digest. Claude adds them as agent notes on the related blocks, so you see them in the UI, and they are not published.
 
-The full rules are in [`docs/format.md`](docs/format.md) (`diff-digest format` prints them).
-
-### On GitHub
-
-`publish` posts the digest as one PR comment. If a digest comment already exists, `publish` updates it. The comment starts with a hidden `<!-- diff-digest: … -->` marker that holds the base and head SHAs, and each anchor becomes a link to the head commit. `pull` reverses these changes, so a pulled digest has the same body as the original. The comment limit is 65,536 characters.
-
-### Generated and binary files
-
-`hunks` and `check` skip these files, and the digest only lists them:
-
-1. `.gitattributes`: `linguist-generated` or `linguist-vendored` marks a file as generated, and `filter=lfs` marks it as binary. `linguist-generated=false` has no effect here, because it only changes GitHub's diff view.
-2. Files that git shows as binary.
-3. Built-in patterns: lockfiles, snapshots, `__generated__/`, generated protos, and minified or map files.
-4. The `generated` regexes in `~/.diff-digest/config.json` (see Configuration). **Mark generated** in the UI file tree adds one file's path to this list.
+`diff-digest format` prints the format and the lint rules. Agents write the Markdown; the tool owns the frontmatter, the comments, and the config, and it lints the Markdown (`lint`, `check`) and applies safe fixes (`fmt`). All valid CommonMark + GFM is allowed. The rules are for best practice.
 
 ## Install
 
-Requirements: [Bun](https://bun.sh) 1.1 or later, git, a browser, and the [`gh`](https://cli.github.com) CLI logged in to your host for the PR features. The UI loads `marked`, `mermaid`, and `highlight.js` from jsDelivr, so it needs network access. The tool has no package dependencies.
+Requirements: [Bun](https://bun.sh) 1.4.2 or later (only to build), git, a browser, and the [`gh`](https://cli.github.com) CLI logged in to your host for the `github` backend. The binary has no runtime dependencies and loads nothing from the network.
 
 ```bash
 git clone <this repo> ~/sources/diff-digest
 cd ~/sources/diff-digest
+bun install
 bun run setup
 ```
 
-`setup` copies the tool into `~/.diff-digest/lib/`, writes the `diff-digest` command to `~/.local/bin/`, and copies the skill into `~/.claude/skills/diff-digest/`. It also writes `~/.diff-digest/config.json` if that file does not exist. Nothing is linked, so edits in the clone have no effect until you run `bun run setup` again.
+`setup` builds one binary (`dist/diff-digest`, with the UI inside), copies it to `~/.local/bin/diff-digest`, and copies the skill into `~/.claude/skills/diff-digest/`. It removes the old tool in `~/.diff-digest/lib/` if it finds it. Run `bun run setup` again after you change the clone.
 
 | Option | Effect |
 |---|---|
-| `--bin-dir <dir>` | Write the command to another folder. It must be on your `PATH`. |
+| `--bin-dir <dir>` | Copy the binary to another folder. It must be on your `PATH`. |
 | `--skills-dir <dir>` | Copy the skill to another Claude Code skills folder. |
 | `--force` | Replace a command or skill folder that `setup` did not make. |
-| `--uninstall` | Remove the tool, the command, and the skill. The config and the digests stay. |
+| `--uninstall` | Remove the command and the skill. The config and the store stay. |
 
 ## The UI
 
@@ -68,72 +56,92 @@ bun run setup
 |---|---|
 | Click a file in the **Files** tree | The file's diff opens in the code pane. |
 | In the code pane, click **⋯** → **Mark generated** | Future digests list the open file as generated and do not describe it. **Unmark generated** reverses this. |
-| Click an anchor | The file opens beside the digest in the **Diff** tab, with the anchored hunk marked. **After** and **Before** show the full file. If the file did not change, the Diff tab shows the full file with an "unchanged" tag. |
-| Hover a line and click **+** | Adds a comment on a digest block, a diff line, or a file line. In the code pane, drag from **+** to another line to comment on a range. A range stays on one side (before or after). |
-| **Apply comments** | The Claude session acts on your open comments and replies to each one. |
-| **Review with agent** | A new agent with no context reads the code first, then checks the digest and edits it. |
-| **Post comments…** | Shows your open comments as one Markdown comment. You can edit it, copy it, or post it to the PR. |
-| **Post digest** | Posts or updates the digest comment on the PR, after you confirm. |
+| Click an anchor | The file opens beside the digest in the **Diff** tab, with the anchored hunk marked. **After** and **Before** show the full file. If the file did not change, the pane shows the full file with an "unchanged" tag. |
+| Hover a block, a table row, or a line, and click **+** | Adds a comment. In the code pane, drag from **+** to another line to comment on a range. A range stays on one side (before or after). |
 
 The dot at the top right shows whether a Claude session is waiting for a click. If no session is waiting, the click is queued until one is.
 
 A Claude Code hook cannot wake an idle session, but a background task that exits does wake it. So Claude runs `diff-digest wait` in the background. It blocks until you click a button, then it exits and prints your comments.
 
+The server runs in the background. `serve` starts it when it is not running, and it stops after 4 hours with no use. There are no system services. `diff-digest server status | stop | restart | logs [-f]` manage it.
+
 ## CLI
 
-Run these commands from the repo or worktree.
+Run `diff-digest --help`, or `diff-digest <command> --help`. Each command takes the target as `[ref]`: nothing (the current branch), a branch, a commit, a range `a..b`, a PR (`#123` or a URL), or the digest `.md` path. Each command has `--json`, and `diff-digest schema <command>` prints the JSON schema of its result.
 
-| Command | Purpose |
+| Group | Commands |
 |---|---|
-| `diff-digest target [<arg>]` | Resolve a PR, branch, commit, or range to its base, head, PR, and digest path. |
-| `diff-digest path [--name <n>]` | Print the digest path for the current branch. |
-| `diff-digest hunks [--base <ref>] [--head <ref>]` | Sort changed files by class and list the reviewable hunks. |
-| `diff-digest check <md> [--head <ref>]` | Fail if a reviewable hunk has no anchor. |
-| `diff-digest serve <md> [--port N] [--open]` | Run the review UI. |
-| `diff-digest wait <md>` | Block until you click a button, then print the action. |
-| `diff-digest publish <md> [--pr <pr>] [--dry-run]` | Post or update the digest comment on the PR. |
-| `diff-digest pull <pr> [--force]` | Fetch the PR commits and its digest comment, and write the digest (pinned if the branch is not checked out). |
-| `diff-digest review-md <md>` | Print your open comments as one Markdown comment. |
-| `diff-digest comments` / `resolve` / `note` | Read and update comments. |
-| `diff-digest export <md> [--open]` | Write one static HTML file whose anchors link to the remote. |
-| `diff-digest config [--init]` | Show the settings for the current repo. `--init` writes the config file if it does not exist. |
-| `diff-digest format` / `prompt review-agent` | Print the format rules or the review-agent prompt. |
+| Targets | `target`, `init [--base]`, `path`, `hunks [--base]` |
+| Format | `lint`, `check`, `fmt [--check] [--questions-to-notes]`, `format` |
+| Comments | `comments [--status] [--markdown] [--publish]`, `resolve`, `note`, `mark [--off]` |
+| UI | `serve [--open]`, `wait [--timeout]`, `export [--out] [--open]` |
+| Backends | `publish [--to] [--dry-run] [--force]`, `pull [--from] [--force]` |
+| Other | `server …`, `prompt review-agent`, `config [--init]`, `schema [--openapi]` |
 
-If you do not give `--base`, the base is the merge-base with the remote default branch. Without `--head`, or `pinned: true` in the frontmatter, the head is the working tree. The working tree includes untracked files that `.gitignore` does not exclude. In a repo that has no commits, the base is the empty tree.
+If you do not give `--base`, the base is the merge-base with the remote default branch. In a repo that has no commits, the base is the empty tree. The working tree includes untracked files that `.gitignore` does not exclude.
+
+| Exit | Code | Exit | Code |
+|---|---|---|---|
+| 0 | OK | 8 | `NO_BACKEND` |
+| 2 | usage error | 9 | `BACKEND_FAILED` |
+| 3 | `BAD_INPUT` | 10 | `BAD_CONFIG` |
+| 4 | `NOT_FOUND` | 11 | `SERVER_DOWN` |
+| 5 | `LINT_FAILED` | 12 | `GIT_FAILED` |
+| 6 | `COVERAGE_GAP` | 13 | `LOCKED` |
+| 7 | `STALE` | 70 | `INTERNAL` |
+
+With `--json`, an error has a `code`, a `message`, and often a `hint`.
 
 ## Configuration
 
-`~/.diff-digest/config.json` holds global settings, and settings for each repo under `repos`. A repo entry matches the repo name or `host/owner/name` of the `origin` remote. Its `generated` list is added to the global list, and its `digestDir` replaces the global one.
+`~/.diff-digest/config.json` holds global settings, and settings for each repo under `repos`. A repo entry matches the repo name or `host/owner/name` of the `origin` remote.
 
 ```json
 {
-  "generated": ["\\.g\\.dart$"],
-  "digestDir": "~/.diff-digest/digests/{repo}",
-  "repos": {
-    "my-monorepo": {
-      "generated": ["(^|/)BUILD\\.bazel$"],
-      "digestDir": "~/work/my-monorepo/.notes/digests"
+  "backends": {
+    "github": { "type": "github" },
+    "notes": {
+      "type": "local",
+      "dir": "~/vault/digests/{repo}",
+      "linkTemplate": "vscode://file/{root}/{path}:{start}",
+      "frontmatter": { "tags": ["digest"] }
     }
+  },
+  "publishTo": ["github", "notes"],
+  "generated": ["\\.g\\.dart$"],
+  "repos": {
+    "my-monorepo": { "generated": ["(^|/)BUILD\\.bazel$"], "publishTo": ["notes"] }
   }
 }
 ```
 
 | Key | Effect |
 |---|---|
-| `generated` | Regexes, tested against the repo-relative path, for more generated files. **Mark generated** in the UI writes `^<path>$` to the repo entry. |
-| `digestDir` | The folder for digests. `{repo}` is the repo name, and `~` is your home folder. The default is `~/.diff-digest/digests/<repo>/`. |
+| `backends` | Named backends. `github` posts one PR comment with a hidden `<!-- diff-digest: … -->` marker, and links anchors to the head commit (limit: 65,536 characters). `local` writes `<dir>/<name>.md` and `<dir>/<name>.review.md` with YAML frontmatter. `dir` takes `{repo}` and `{branch}`. `linkTemplate` takes `{root}`, `{path}`, `{start}`, `{end}`, and `{sha}`; with no template, anchors stay code spans. |
+| `publishTo` | The backends for `publish`, `pull`, and `comments --publish` when you give no `--to` / `--from`. The default is `["github"]`. |
+| `generated` | Regexes, tested against the repo-relative path, for more generated files. A repo's list is added to the global list. **Mark generated** writes `^<path>$` to the repo entry. |
 
-`diff-digest config` shows the settings for the current repo. `DIFF_DIGEST_HOME` moves the `~/.diff-digest` folder, for example for tests.
+`diff-digest config` shows the settings for the current repo. `DIFF_DIGEST_HOME` moves the `~/.diff-digest` folder, for example for tests. Working copies and their comments are in `~/.diff-digest/store/`.
 
-## Layout
+### Generated and binary files
+
+`hunks` and `check` skip these files, and the digest only lists them:
+
+1. `.gitattributes`: `linguist-generated` or `linguist-vendored` marks a file as generated, and `filter=lfs` marks it as binary.
+2. Files that git shows as binary.
+3. Built-in patterns: lockfiles, snapshots, `__generated__/`, generated protos, and minified or map files.
+4. The `generated` regexes in the config.
+
+## Development
+
+`bun run verify` runs the type check, the lint (oxlint with type-aware rules, the suppression check, Prettier), and the tests. `bun run dev` runs the server with hot reload. `bun run build` builds `dist/diff-digest`. The design is in `docs/superpowers/specs/2026-09-30-typescript-rewrite-design.md`.
 
 ```
-bin/diff-digest.mjs        CLI and server (Bun, no dependencies)
-scripts/install.mjs        `bun run setup`
-ui/                        browser UI (index.html, app.js, styles.css)
-docs/format.md             digest format and rules
-prompts/review-agent.md    prompt for "Review with agent"
-skills/diff-digest/        the Claude Code skill
+src/cli/      the Stricli commands
+src/server/   the background server (oRPC over Bun.serve)
+src/app/      the React UI
+src/lib/      the shared code: schemas, git, digest, lint, fmt, backends
+skills/       the Claude Code skill
+docs/         the format doc, the spec, and the plans
+scripts/      build, setup, and the suppression check
 ```
-
-Next to each digest, the server writes `<name>.comments.json` and `<name>.server.json`.
