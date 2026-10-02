@@ -4,6 +4,7 @@ import { z } from "zod";
 import { parseDigest } from "../../src/lib/frontmatter";
 import { git } from "../../src/lib/repo";
 import { resolveDigest } from "../../src/cli/ref";
+import { registerDigest, registryPath } from "../../src/lib/registry";
 import { resolveTarget } from "../../src/cli/target";
 import { envelope, runCli } from "../helpers/cli";
 import { expectDigestError, makeRepo, tempDir, type TestRepo } from "../helpers/repo";
@@ -112,5 +113,14 @@ describe("init, path, and the digest reference", () => {
             data: { files: [{ path: "a.ts", cls: "source", hunks: [{ start: 1, end: 1 }] }], reviewableLines: 2 },
         });
         expect(runCli(["hunks"], r.root, home ?? "").stdout).toContain("source    M a.ts");
+    });
+
+    test("a target ref replaces a stale root in the registry", () => {
+        const r = setup();
+        const h = home ?? "";
+        runCli(["init"], r.root, h);
+        const entry = resolveDigest({}, { cwd: r.root, home: h });
+        registerDigest({ ...entry, root: "/gone" }, registryPath(h));
+        expect(resolveDigest({}, { cwd: r.root, home: h }).root).toBe(r.root);
     });
 });

@@ -5,7 +5,7 @@ import type { Command, RouteMap } from "@stricli/core";
 import { routes } from "../../src/cli/app";
 import type { CliContext } from "../../src/cli/context";
 
-const PROMPT = readFileSync(join(import.meta.dir, "../../prompts/review-agent.md"), "utf8");
+const PROMPT = readFileSync(join(import.meta.dir, "../../src/cli/prompts/review-agent.md"), "utf8");
 /** The placeholders that the skill fills, with a sample value of the same shape. */
 const PLACEHOLDERS: Readonly<Record<string, string>> = {
     WORKTREE: "/repo",

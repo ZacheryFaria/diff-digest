@@ -64,7 +64,7 @@ The output starts with `ACTION: <type>`, followed by JSON that contains the open
   - A question about the code: answer it from the code in the reply.
   - A code change: make it on the target branch. If the branch is not checked out here, ask the user before you check it out or make a worktree. Do not push unless the user tells you to.
   - If you changed a digest that is posted to the PR, ask the user whether to post it again.
-- **`review`**: start a **new** agent with the Agent tool. Use `subagent_type: general-purpose`, do not use a fork, and do not set a model. Its prompt is the output of `diff-digest prompt review-agent`, with these placeholders filled in: `{{WORKTREE}}`, `{{BASE}}`, `{{HEAD}}` (`working tree` if checked out), `{{DIGEST}}`, `{{REF_ARGS}}` (`<ref> [--base <base>]`: the branch, commit, or range of the digest, plus `--base <base>` when the base is not the default base), and `{{RANGE}}` (`<base>`, plus `<head>` if pinned). When it finishes, run `check` and give the user a short summary.
+- **`review`**: start a **new** agent with the Agent tool. Use `subagent_type: general-purpose`, do not use a fork, and do not set a model. Its prompt is the output of `diff-digest prompt review-agent`, with these placeholders filled in: `{{WORKTREE}}`, `{{BASE}}`, `{{HEAD}}` (`working tree` if checked out), `{{DIGEST}}`, `{{HUNK_ARGS}}` (`--base <base>`, plus `--head <head>` if pinned), and `{{RANGE}}` (`<base>`, plus `<head>` if pinned). When it finishes, run `check` and give the user a short summary.
 - **`timeout`** or **`error`**: if the server is not running, start it again.
 
 After each action, start `wait` again. The page reloads by itself when the digest or the comments change.

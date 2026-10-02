@@ -1,7 +1,7 @@
 // `format` and `prompt`: documentation for agents. The text is inside the binary.
 import { buildCommand } from "@stricli/core";
 import formatDoc from "../../../docs/format.md" with { type: "text" };
-import reviewAgent from "../../../prompts/review-agent.md" with { type: "text" };
+import reviewAgent from "../prompts/review-agent.md" with { type: "text" };
 import { DigestError } from "../../lib/errors";
 import { formatRulesMarkdown } from "../../lib/lint";
 import type { CliContext } from "../context";

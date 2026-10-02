@@ -44,14 +44,15 @@ export function workingCopyFor(ref: string | undefined, place: Place, base?: str
 }
 
 /**
- * The registry entry for a working copy. An entry with the same id and path is used as it is: a
- * read-only command does not change it. Only a new or moved digest is registered, with `root()`.
+ * The registry entry for a working copy. For a `.md` path ref the cwd does not prove the repo, so an
+ * entry with the same id and path is used as it is, and only a new or moved digest is registered with
+ * `root()`. For a target ref the root is known (`known: true`), so a stale root is replaced.
  */
-function register(mdPath: string, root: () => string, home: string): RegistryEntry {
+function register(mdPath: string, root: () => string, home: string, known = false): RegistryEntry {
     const { frontmatter } = parseDigest(readFileSync(mdPath, "utf8"));
     const path = registryPath(home);
-    const known = readRegistry(path).digests[frontmatter.id];
-    if (known?.mdPath === mdPath) return known;
+    const entry = readRegistry(path).digests[frontmatter.id];
+    if (entry?.mdPath === mdPath && (!known || entry.root === root())) return entry;
     return registerDigest({ id: frontmatter.id, mdPath, root: root() }, path);
 }
 
@@ -72,5 +73,5 @@ export function resolveDigest(input: RefInput, place: Place): RegistryEntry {
             hint: "Create it with `diff-digest init`.",
         });
     }
-    return register(copy.mdPath, () => copy.root, place.home);
+    return register(copy.mdPath, () => copy.root, place.home, true);
 }
