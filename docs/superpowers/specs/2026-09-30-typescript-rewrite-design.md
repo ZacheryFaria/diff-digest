@@ -98,7 +98,7 @@ Dependency rules between folders:
 
 - `cli` → `lib` and `server`.
 - `server` → `lib`.
-- `app` → only the pure lib files: `schemas.ts`, `schemas-api.ts`, `contract.ts`, `client.ts`, `digest.ts`, `md.ts`, `model.ts`, and `render.ts`. It imports no Node or Bun API.
+- `app` → only the pure lib files: `schemas.ts`, `schemas-api.ts`, `contract.ts`, `client.ts`, `digest.ts`, `md.ts`, `model.ts`, `render.ts`, `review.ts`, and `publish/schemas.ts`. It imports no Node or Bun API.
 - `lib` → no other folder in `src`.
 
 An oxlint `no-restricted-imports` rule for each folder enforces these rules.
