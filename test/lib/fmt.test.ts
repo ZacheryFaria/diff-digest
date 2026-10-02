@@ -8,6 +8,7 @@ import {
     questionsToNotes,
     renumber,
     tableStyle,
+    withSizeLine,
 } from "../../src/lib/fmt";
 import { GOOD_BODY } from "../fixtures/digest";
 
@@ -141,5 +142,31 @@ describe("formatDigest", () => {
         const keep = formatDigest(MESSY, { questionsToNotes: false });
         expect(keep.body).toContain("## Questions");
         expect(formatDigest(keep.body, { questionsToNotes: false }).body).toBe(keep.body);
+    });
+});
+
+describe("withSizeLine", () => {
+    const counts = { reviewableLines: 40, commits: 3 };
+
+    test("adds the Size line below the title, and counts the digest lines with it", () => {
+        expect(withSizeLine("\n# T\n\n## Changes\n\n- a: `a.ts:1`\n", counts)).toBe(
+            "\n# T\n\n- **Size:** 4 digest lines for 40 reviewable diff lines in 3 commits.\n\n## Changes\n\n- a: `a.ts:1`\n",
+        );
+    });
+
+    test("puts it first in a summary list, and replaces an old one", () => {
+        const body = "\n# T\n\n- **What it does:** x: `a.ts:1`\n\n## Changes\n";
+        const once = withSizeLine(body, counts);
+        expect(once).toContain(
+            "- **Size:** 4 digest lines for 40 reviewable diff lines in 3 commits.\n- **What it does:**",
+        );
+        expect(withSizeLine(once, { reviewableLines: 41, commits: 1 })).toContain(
+            "- **Size:** 4 digest lines for 41 reviewable diff lines in 1 commit.\n",
+        );
+        expect(withSizeLine(once, counts)).toBe(once);
+    });
+
+    test("leaves a body with no title as it is", () => {
+        expect(withSizeLine("\n- a\n", counts)).toBe("\n- a\n");
     });
 });

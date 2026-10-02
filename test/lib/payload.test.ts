@@ -84,7 +84,7 @@ describe("check", () => {
 
     test("checkDigest gives lint issues and coverage gaps", () => {
         const result = checkDigest(setup("# T\n\n- `a.ts:9`\n"));
-        expect(result.issues.map(i => i.rule)).toEqual(["anchor-resolves"]);
+        expect(result.issues.filter(i => i.severity === "error").map(i => i.rule)).toEqual(["anchor-resolves"]);
         expect(result.gaps).toEqual(["a.ts:2-2", "gone.ts (deleted)", "new.ts:1-1"]);
     });
 });

@@ -1,8 +1,11 @@
 // `fmt`: the safe fixes, written to the working copy, and Questions moved to agent notes.
 import { readFileSync } from "node:fs";
-import { formatDigest } from "../lib/fmt";
+import { diffLineCount } from "../lib/diff";
+import { formatDigest, withSizeLine, type SizeCounts } from "../lib/fmt";
 import { parseDigest, serializeDigest } from "../lib/frontmatter";
 import { buildModel } from "../lib/model";
+import { openDigest } from "../lib/payload";
+import { runGit } from "../lib/repo";
 import type { RegistryEntry } from "../lib/schemas-api";
 import { writeAtomic } from "../lib/store";
 import { localApi } from "./api";
@@ -13,7 +16,16 @@ export interface FmtResult {
     readonly questions: readonly string[];
 }
 
+/** The Size line counts: the reviewable diff lines (as `hunks` counts them) and the commits from base to head. */
+function sizeCounts(entry: RegistryEntry, home: string): SizeCounts {
+    const { ctx, files } = openDigest(entry, home);
+    const head = ctx.head === "worktree" ? "HEAD" : ctx.head;
+    const count = runGit(ctx.root, ["rev-list", "--count", `${ctx.base}..${head}`]);
+    return { reviewableLines: diffLineCount(ctx, files), commits: count.ok ? Number(count.stdout.trim()) : 0 };
+}
+
 /**
+ * fmt also writes the summary's Size line from the diff.
  * The notes go on the H1 title. With no title there is no block for them, so the Questions stay.
  * The notes are written before the file: if a note fails, the questions are still in the file.
  */
@@ -27,7 +39,7 @@ export async function fmtDigest(
     const title = buildModel(body).title?.text;
     const move = options.questionsToNotes && !options.check && title !== undefined;
     const result = formatDigest(body, { questionsToNotes: move });
-    const next = serializeDigest(frontmatter, result.body);
+    const next = serializeDigest(frontmatter, withSizeLine(result.body, sizeCounts(entry, home)));
     if (options.check || next === md) return { path: entry.mdPath, changed: next !== md, questions: [] };
     if (title !== undefined && result.questions.length > 0) {
         const api = localApi(home);

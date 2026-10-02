@@ -16,7 +16,8 @@ afterEach(() => {
     if (home !== undefined) rmSync(home, { recursive: true, force: true });
 });
 
-const BODY = "# Title\n\n## Changes\n\n- `a.ts` returns two: `a.ts:1`\n";
+const BODY =
+    "# Title\n\n- **Size:** 9 digest lines for 2 reviewable diff lines in 1 commit.\n- **What it does:** The function gives 2: `a.ts:1`\n\n## Changes\n\n- `a.ts` returns two: `a.ts:1`\n";
 const TARGET = { kind: "code", path: "a.ts", rev: "head", line: 1, text: "2" } as const;
 
 interface Setup {

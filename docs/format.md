@@ -2,6 +2,8 @@
 
 A digest is a **change spec**. It is much smaller than the diff, and a reviewer can match every claim to the code.
 
+**The main rule: every line maps to code.** Each note, bullet, and table row points to the code that it describes, with an anchor. The mapping does not have to be 1:1: an anchor on a parent bullet covers its nested bullets, and an anchor on a `###` heading covers the rows of its table. A line that points to no code is noise or a guess.
+
 **The test for a good digest:** give it and the base commit to a new agent of the same model class. That agent must be able to make a change that behaves the same way. The code does not need to be identical.
 
 ## Layout
@@ -10,6 +12,13 @@ The tool writes the frontmatter (`diff-digest init`). Do not edit it. You write 
 
 ````markdown
 # <What changed, in one line>
+
+- **Size:** 175 digest lines for 8500 reviewable diff lines in 30 commits.
+- **What it does:** Two to four sentences about the behavior, with anchors to the entry points: `path/entry.ts:10-40`
+- **New modules:**
+  - `pkg/new-module` holds the frame codec: `pkg/new-module/index.ts:1`
+- **Changes you can see:**
+  - ⚠️ The mode shows MANUAL before the device accepts it: `path/mode.ts:20-31`
 
 **Generated (not reviewed):** `package-lock.json`
 
@@ -22,14 +31,14 @@ flowchart LR
   classDef changed stroke:#ffc430,stroke-width:2px
 ```
 
-1. ① One or two lines: what is different at this node.
-2. ② ...
+1. ① One or two lines: what is different at this node, with an anchor to its main file: `path/client.ts:1-60`
+2. ② ...: `path/view.tsx:1-40`
 
 ## Changes
 
 - ① `oldThing(a, b)` is now `newThing(a)`. The `b` check moved to the caller: `path/file.ts:10-14`
 
-### <Behavior table name> `path/file.ts:120-140`
+### Behavior table name `path/file.ts:120-140`
 
 | Case | Before | After |
 |---|---|---|
@@ -38,6 +47,7 @@ flowchart LR
 
 | Test | Proves | Why this case |
 |---|---|---|
+| `test/client.test.ts:12-30` retries twice | The third failure is final | Edge case |
 
 ### Test gaps
 
@@ -49,6 +59,7 @@ flowchart LR
 
 `diff-digest lint` checks the rules in the table below. This guidance is what lint cannot check.
 
+- **Summary.** `fmt` writes the **Size** line from the diff; do not count. Write **What it does** (behavior only), **New modules**, and **Changes you can see** (the ⚠️ items), each with anchors. Leave out an item that has nothing in it, except What it does.
 - **No intent.** Do not guess why the author made the change. Describe only what the code does.
 - **Generated files.** Only list them. Never describe them. `hunks` marks these files as `generated`: lockfiles, snapshots, `__generated__/`, generated protos, and minified or map files. Also `.gitattributes` (`linguist-generated`, `linguist-vendored`) and the `generated` patterns in `~/.diff-digest/config.json`. Binary and LFS files are marked `binary`; list them the same way.
 - **Do not mention** import changes, reordered code, or moved code that is otherwise identical.

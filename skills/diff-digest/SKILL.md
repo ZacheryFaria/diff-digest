@@ -38,8 +38,8 @@ Use the first of these that applies:
    - Run `diff-digest init [<ref>]`. It writes the working copy with its frontmatter and prints the path. Add `--base <ref>` when the user asks for another base.
    - Run `diff-digest hunks [<ref>]`. It sorts the files into `source`, `test`, `generated`, and `binary` (from `.gitattributes`, the config, and built-in patterns), and removes import-only and moved-code hunks.
    - Read the source and test hunks with `git diff --no-ext-diff <base> [<head>] -- <path>`. Do not read generated or binary files.
-   - Run `diff-digest format` and obey it. In the diagram, number each changed node (①②③) and use the same numbers in the list below it and in the Changes bullets. Write the body below the frontmatter.
-   - Run `diff-digest fmt [<ref>]` (safe fixes), then `diff-digest check [<ref>]`. Fix every lint error (exit 5) and every coverage gap (exit 6). Before you write a claim such as "no code reads X", verify it with `grep`.
+   - Run `diff-digest format` and obey it. The main rule: **every line maps to code**, so each note, bullet, and table row has an anchor (or a parent bullet or `###` heading has one). In the diagram, number each changed node (①②③) and use the same numbers in the list below it (each note with an anchor) and in the Changes bullets. Below the title, write the summary: **What it does**, **New modules**, **Changes you can see**, with anchors. Write the body below the frontmatter.
+   - Run `diff-digest fmt [<ref>]` (safe fixes; it also writes the summary's **Size** line from the diff), then `diff-digest check [<ref>]`. Fix every lint error (exit 5) and every coverage gap (exit 6), and the `maps-to-code` and `summary` warnings. Before you write a claim such as "no code reads X", verify it with `grep`.
    - The digest has no Questions section. For each question that the code cannot answer, run `diff-digest note --ref <ref> "<text from the related block>" "Q: <question>"`.
    - If a backend can take the digest (for `github`, a PR exists), ask the user one question (AskUserQuestion): *publish the digest*, or *keep it local*. Before you publish from the working tree, make sure that the branch is pushed. To publish, run `diff-digest publish [<ref>]`. `--dry-run` shows the body and posts nothing.
 
@@ -48,7 +48,7 @@ Use the first of these that applies:
 1. Run `diff-digest serve [<ref>] --open`. It starts the background server if it is not running, opens the page, and prints the URL. The command exits at once; the server keeps running.
 2. Start `diff-digest wait [<ref>]` as a background task (`run_in_background: true`, `timeout: 7200000`). It exits when the user clicks a button, and the exit wakes you.
 
-Tell the user the URL, the published URL if you published, and how many questions you added as notes. Then stop and wait.
+Reply to the user with the digest's summary block (Size, What it does, New modules, Changes you can see), the URL, the published URL if you published, and how many questions you added as notes. Then stop and wait.
 
 In the UI, the user comments on digest blocks, table rows, and code lines (drag from **+** for a range), then uses one of these buttons:
 

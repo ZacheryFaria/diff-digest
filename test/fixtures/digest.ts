@@ -2,6 +2,9 @@
 export const GOOD_BODY = `
 # Retry failed API calls
 
+- **Size:** 25 digest lines for 40 reviewable diff lines in 1 commit.
+- **What it does:** A failed API call is tried two more times: \`src/api.ts:10-14\`
+
 **Generated (not reviewed):** \`bun.lock\`
 
 ## Architecture
@@ -13,8 +16,8 @@ flowchart LR
   classDef changed stroke:#ffc430,stroke-width:2px
 \`\`\`
 
-1. ① The client retries a failed call two times.
-2. ② The list shows a retry badge.
+1. ① The client retries a failed call two times: \`src/api.ts:1-20\`
+2. ② The list shows a retry badge: \`src/badge.tsx:1-5\`
 
 ## Changes
 
@@ -25,7 +28,7 @@ flowchart LR
 
 | Test | Proves | Why this case |
 |---|---|---|
-| retries twice | The third failure is final | Edge case |
+| retries twice \`test/api.test.ts:5\` | The third failure is final | Edge case |
 `;
 
 export const FRONTMATTER = `---

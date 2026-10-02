@@ -32,14 +32,14 @@ describe("lintDigest", () => {
     test("anchor-resolves: a bad anchor is an error on its file line", () => {
         const ctx: LintContext = { checkAnchor: a => (a.path === "src/view.tsx" ? "No such file" : null) };
         expect(lintDigest(`${FRONTMATTER}${GOOD_BODY}`, ctx)).toEqual([
-            { rule: "anchor-resolves", severity: "error", line: 29, message: "No such file" },
+            { rule: "anchor-resolves", severity: "error", line: 32, message: "No such file" },
         ]);
     });
 
     test("anchor-resolves: an anchor in a table header is checked too", () => {
-        const body = `${GOOD_BODY}\n| \`bad.ts:1\` | b |\n|---|---|\n| 1 | 2 |\n`;
+        const body = `${GOOD_BODY}\n| \`bad.ts:1\` | b |\n|---|---|\n| \`ok.ts:1\` | 2 |\n`;
         const ctx: LintContext = { checkAnchor: a => (a.path === "bad.ts" ? "No such file" : null) };
-        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 37]]);
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 40]]);
     });
 
     test("anchor-resolves: an anchor in a nested Changes bullet is checked", () => {
@@ -51,21 +51,21 @@ describe("lintDigest", () => {
                 return a.path === "bad.ts" ? "No such file" : null;
             },
         };
-        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 30]]);
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 33]]);
         expect(checked).toContain("bad.ts");
     });
 
     test("anchor-resolves: an anchor in a list inside a callout is checked", () => {
         const body = `${GOOD_BODY}\n> [!NOTE]\n> See:\n> - \`bad.ts:1\`\n`;
         const ctx: LintContext = { checkAnchor: a => (a.path === "bad.ts" ? "No such file" : null) };
-        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 39]]);
+        expect(lintDigest(`${FRONTMATTER}${body}`, ctx).map(i => [i.rule, i.line])).toEqual([["anchor-resolves", 42]]);
     });
 
     test("no-inline-html and no-wikilinks: a nested bullet is checked", () => {
         const body = GOOD_BODY.replace("`src/view.tsx:3`\n", "`src/view.tsx:3`\n  - A <b>bold</b> [[x]] word.\n");
         expect(lintDigest(`${FRONTMATTER}${body}`, OK).map(i => [i.rule, i.line])).toEqual([
-            ["no-inline-html", 30],
-            ["no-wikilinks", 30],
+            ["no-inline-html", 33],
+            ["no-wikilinks", 33],
         ]);
     });
 
@@ -89,11 +89,11 @@ describe("lintDigest", () => {
 
     test("node-numbers: a note whose number is not a node is an error on the note line", () => {
         const body = GOOD_BODY.replace(
-            "2. ② The list shows a retry badge.\n",
-            "2. ② The list shows a retry badge.\n3. ③ More.\n",
+            "2. ② The list shows a retry badge: `src/badge.tsx:1-5`\n",
+            "2. ② The list shows a retry badge: `src/badge.tsx:1-5`\n3. ③ More: `src/x.ts:1`\n",
         );
         expect(lintDigest(`${FRONTMATTER}${body}`, OK)).toEqual([
-            { rule: "node-numbers", severity: "error", line: 25, message: "③ is not a node in the diagram." },
+            { rule: "node-numbers", severity: "error", line: 28, message: "③ is not a node in the diagram." },
         ]);
     });
 
@@ -105,7 +105,9 @@ describe("lintDigest", () => {
     });
 
     test("diagram-notes: a numbered node with no note, and a note that is not a node", () => {
-        expect(rules(GOOD_BODY.replace("2. ② The list shows a retry badge.\n", ""))).toEqual(["diagram-notes"]);
+        expect(rules(GOOD_BODY.replace("2. ② The list shows a retry badge: `src/badge.tsx:1-5`\n", ""))).toEqual([
+            "diagram-notes",
+        ]);
         // ② now has no note (diagram-notes), and ④ is not a node (node-numbers).
         expect(rules(GOOD_BODY.replace("2. ② The list", "2. ④ The list"))).toEqual(["diagram-notes", "node-numbers"]);
     });
@@ -131,7 +133,9 @@ describe("lintDigest", () => {
         expect(rules(`${GOOD_BODY}\nSee [[Note]].\n`)).toEqual(["no-wikilinks"]);
         expect(rules(`${GOOD_BODY}\nSee [docs][d].\n\n[d]: https://x.dev\n`)).toEqual(["link-style", "link-style"]);
         expect(
-            rules(`${GOOD_BODY}\n| a | b | c | d | e | f |\n|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 |\n`),
+            rules(
+                `${GOOD_BODY}\n| a | b | c | d | e | f |\n|---|---|---|---|---|---|\n| \`a.ts:1\` | 2 | 3 | 4 | 5 | 6 |\n`,
+            ),
         ).toEqual(["table-max-columns"]);
     });
 
@@ -143,5 +147,38 @@ describe("lintDigest", () => {
             "anchor-resolves",
             "node-numbers",
         ]);
+    });
+    test("maps-to-code: a Changes bullet or a note with no anchor is a warning on its line", () => {
+        const body = GOOD_BODY.replace("- ② The badge", "- ③ Also a plain line.\n- ② The badge");
+        expect(
+            lintDigest(`${FRONTMATTER}${body}`, OK)
+                .filter(i => i.rule === "maps-to-code")
+                .map(i => [i.severity, i.line, i.message]),
+        ).toEqual([["warn", 32, "This line has no anchor."]]);
+    });
+
+    test("maps-to-code: an anchor in a parent bullet or a ### heading covers the lines below it", () => {
+        const body = `${GOOD_BODY}\n### Retry cases \`src/api.ts:10-14\`\n\n| Case | After |\n|---|---|\n| 500 | retry |\n\n- Parent: \`src/api.ts:10\`\n  - Nested with no anchor.\n`;
+        expect(rules(body)).toEqual([]);
+    });
+
+    test("maps-to-code: a group label needs no anchor, but its nested bullets do", () => {
+        const good = `${GOOD_BODY}\n## Changes\n\n- Docs:\n  - one: \`a.ts:1\`\n`;
+        expect(rules(good).filter(r => r === "maps-to-code")).toEqual([]);
+        const bad = `${GOOD_BODY}\n## Changes\n\n- Docs:\n  - one with no anchor\n`;
+        expect(rules(bad).filter(r => r === "maps-to-code")).toEqual(["maps-to-code"]);
+    });
+
+    test("maps-to-code: prose in Changes is a warning; a statement in Tests is not", () => {
+        const changes = GOOD_BODY.replace("## Changes\n\n", "## Changes\n\nSome prose.\n\n");
+        expect(rules(changes)).toEqual(["maps-to-code"]);
+        expect(rules(`${GOOD_BODY}\nNo other tests changed.\n`)).toEqual([]);
+    });
+
+    test("summary: no summary is a warning on the title; a summary item with no anchor is a warning", () => {
+        const none = GOOD_BODY.replace(/- \*\*Size:\*\*.*\n- \*\*What it does:\*\*.*\n/u, "");
+        expect(lintDigest(`${FRONTMATTER}${none}`, OK).map(i => [i.rule, i.line])).toEqual([["summary", 10]]);
+        const plain = GOOD_BODY.replace(/(\*\*What it does:\*\*.*): `src\/api.ts:10-14`/u, "$1.");
+        expect(rules(plain)).toEqual(["summary"]);
     });
 });

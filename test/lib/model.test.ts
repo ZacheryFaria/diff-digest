@@ -111,8 +111,8 @@ describe("buildModel", () => {
         expect(m.diagram?.nodes.map(n => n.number)).toEqual([1, null, 2]);
         expect(m.notes.map(n => n.number)).toEqual([1, 2]);
         expect(m.changes.map(c => [c.number, c.line])).toEqual([
-            [1, 28],
-            [2, 29],
+            [1, 31],
+            [2, 32],
         ]);
     });
 
@@ -128,8 +128,8 @@ describe("buildModel", () => {
     test("a nested item gets its own block id and line, in the same section", () => {
         const body = GOOD_BODY.replace("`src/view.tsx:3`\n", "`src/view.tsx:3`\n  - Nested note.\n");
         const nested = buildModel(body, 8).blocks.find(b => b.text === "Nested note.");
-        expect(nested).toMatchObject({ section: "Changes", line: 30 });
-        const parent = buildModel(body, 8).blocks.find(b => b.line === 29);
+        expect(nested).toMatchObject({ section: "Changes", line: 33 });
+        const parent = buildModel(body, 8).blocks.find(b => b.line === 32);
         expect(parent?.text).toBe("② The badge renders when `retried` is true: `src/view.tsx:3`");
     });
 });

@@ -1,6 +1,7 @@
 // Safe auto-fixes for a digest body (spec §9). Each fix keeps the meaning and never deletes
 // content. Only `questionsToNotes` removes a section, and it returns the text it removed.
 import { toLf } from "./digest";
+import { SIZE_LABEL, SUMMARY_LABELS } from "./lint/mapping";
 import { KNOWN_SECTIONS, QUESTIONS } from "./lint/structure";
 import { codeLines, endLine, parseBlocks } from "./md";
 import { buildModel, circled, leadingNumber } from "./model";
@@ -160,4 +161,39 @@ export function formatDigest(input: string, options: FmtOptions): FmtResult {
         moved.body,
     );
     return { body: fixed, questions: moved.questions };
+}
+
+const SIZE_ITEM = new RegExp(`^- ${SIZE_LABEL.replaceAll("*", String.raw`\*`)}.*$`, "mu");
+const SUMMARY_ITEM = new RegExp(`^- (?:${SUMMARY_LABELS.map(l => l.replaceAll("*", String.raw`\*`)).join("|")})`, "mu");
+
+/** The counts in the summary's Size line. `fmt` gets them from the diff, so the agent does not count. */
+export interface SizeCounts {
+    readonly reviewableLines: number;
+    readonly commits: number;
+}
+
+function sizeText(digestLines: number, counts: SizeCounts): string {
+    const commits = `${counts.commits} commit${counts.commits === 1 ? "" : "s"}`;
+    return `- ${SIZE_LABEL} ${digestLines} digest lines for ${counts.reviewableLines} reviewable diff lines in ${commits}.`;
+}
+
+/** Puts `line` as the summary's Size item: in place of the old one, first in the summary list, or below the title. */
+function placeSizeLine(body: string, line: string): string {
+    const h2 = body.search(/^## /mu);
+    const pre = h2 === -1 ? body : body.slice(0, h2);
+    const rest = body.slice(pre.length);
+    if (SIZE_ITEM.test(pre)) return pre.replace(SIZE_ITEM, line) + rest;
+    const summary = SUMMARY_ITEM.exec(pre);
+    if (summary !== null) return `${pre.slice(0, summary.index)}${line}\n${pre.slice(summary.index)}${rest}`;
+    const title = /^# .*$/mu.exec(pre);
+    if (title === null) return body;
+    const at = title.index + title[0].length;
+    return `${pre.slice(0, at)}\n\n${line}${pre.slice(at)}${rest}`;
+}
+
+/** The body with an up-to-date Size line in its summary. A body with no H1 title is not changed. */
+export function withSizeLine(body: string, counts: SizeCounts): string {
+    const draft = placeSizeLine(body, sizeText(0, counts));
+    const digestLines = draft.split("\n").filter(l => l.trim() !== "").length;
+    return placeSizeLine(draft, sizeText(digestLines, counts));
 }

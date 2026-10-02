@@ -5,33 +5,11 @@ import { bodyLineOffset, toLf } from "../digest";
 import { FRONTMATTER, parseDigest } from "../frontmatter";
 import { buildModel } from "../model";
 import type { LintIssue } from "../schemas";
-import { anchorResolves, linkStyle, noInlineHtml, noIntent, noWikilinks, tableMaxColumns } from "./content";
-import { changedNodeMarked, diagramNotes, diagramSize, nodeNumbers } from "./diagram";
-import { frontmatter } from "./frontmatter";
-import type { LintContext, LintInput, LintRule } from "./rule";
-import { noQuestions, sectionOrder, unknownSection } from "./structure";
+import type { LintContext, LintInput } from "./rule";
+import { RULES } from "./rules";
 
 export type { LintContext, LintRule } from "./rule";
-export { INTENT_PHRASES, MAX_TABLE_COLUMNS } from "./content";
-export { MAX_DIAGRAM_NODES } from "./diagram";
-export { KNOWN_SECTIONS } from "./structure";
-
-export const RULES: readonly LintRule[] = [
-    frontmatter,
-    anchorResolves,
-    nodeNumbers,
-    changedNodeMarked,
-    diagramNotes,
-    diagramSize,
-    sectionOrder,
-    unknownSection,
-    noQuestions,
-    noIntent,
-    noInlineHtml,
-    noWikilinks,
-    linkStyle,
-    tableMaxColumns,
-];
+export * from "./rules";
 
 /** Lints a full digest file (frontmatter + body). Issues are sorted by line. CRLF counts as one line end. */
 export function lintDigest(file: string, ctx: LintContext): LintIssue[] {
