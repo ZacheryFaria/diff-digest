@@ -1,44 +1,39 @@
 // `hunks`: the changed files with their classes and the reviewable hunks.
-import { buildCommand } from "@stricli/core";
 import { generatedMatcher, readConfigFile, resolveConfig } from "../../lib/config";
 import { changedFiles, diffLineCount, isReviewable, reviewableHunks } from "../../lib/diff";
 import { configPath } from "../../lib/paths";
 import { repoKeys, type RepoContext } from "../../lib/repo";
 import type { CliContext } from "../context";
-import { emit, jsonFlag } from "../output";
+import { emit } from "../output";
 import { HunksOutputSchema, type HunksOutput } from "../outputs";
 import { workingCopyFor } from "../ref";
-import { baseFlag, refPositional, type BaseFlags } from "./shared";
+import type { BaseFlags } from "./shared";
 
-export const hunksCommand = buildCommand({
-    docs: { brief: "Sort the changed files into classes and list the reviewable hunks" },
-    parameters: { flags: { json: jsonFlag, base: baseFlag }, positional: refPositional },
-    async func(this: CliContext, flags: BaseFlags, ref?: string) {
-        await emit(this.out, { json: flags.json, schema: HunksOutputSchema, text: hunksText }, () => {
-            const { root, target } = workingCopyFor(ref, this, flags.base);
-            const ctx: RepoContext = {
-                root,
-                base: target.base,
-                head: target.checkedOut || target.head === null ? "worktree" : target.head,
-            };
-            const files = changedFiles(
-                ctx,
-                generatedMatcher(resolveConfig(readConfigFile(configPath(this.home)), repoKeys(root))),
-            );
-            return {
-                base: target.base,
-                head: ctx.head,
-                files: files.map(f => ({
-                    ...f,
-                    hunks: isReviewable(f)
-                        ? reviewableHunks(ctx, f).map(h => ({ start: h.start, end: h.end, size: h.size }))
-                        : [],
-                })),
-                reviewableLines: diffLineCount(ctx, files),
-            };
-        });
-    },
-});
+export async function hunks(this: CliContext, flags: BaseFlags, ref?: string): Promise<void> {
+    await emit(this.out, { json: flags.json, schema: HunksOutputSchema, text: hunksText }, () => {
+        const { root, target } = workingCopyFor(ref, this, flags.base);
+        const ctx: RepoContext = {
+            root,
+            base: target.base,
+            head: target.checkedOut || target.head === null ? "worktree" : target.head,
+        };
+        const files = changedFiles(
+            ctx,
+            generatedMatcher(resolveConfig(readConfigFile(configPath(this.home)), repoKeys(root))),
+        );
+        return {
+            base: target.base,
+            head: ctx.head,
+            files: files.map(f => ({
+                ...f,
+                hunks: isReviewable(f)
+                    ? reviewableHunks(ctx, f).map(h => ({ start: h.start, end: h.end, size: h.size }))
+                    : [],
+            })),
+            reviewableLines: diffLineCount(ctx, files),
+        };
+    });
+}
 
 function hunksText(r: HunksOutput): string {
     const lines = [

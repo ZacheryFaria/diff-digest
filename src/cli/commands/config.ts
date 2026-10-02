@@ -6,7 +6,8 @@ import { configPath } from "../../lib/paths";
 import { findRepoRoot, repoKeys } from "../../lib/repo";
 import { writeAtomic } from "../../lib/store";
 import type { CliContext } from "../context";
-import { emit, jsonFlag } from "../output";
+import { emit } from "../output";
+import { jsonFlag } from "./shared";
 import { ConfigOutputSchema } from "../outputs";
 
 export const configCommand = buildCommand({

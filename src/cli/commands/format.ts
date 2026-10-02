@@ -5,7 +5,8 @@ import reviewAgent from "../../../prompts/review-agent.md" with { type: "text" }
 import { DigestError } from "../../lib/errors";
 import { formatRulesMarkdown } from "../../lib/lint";
 import type { CliContext } from "../context";
-import { emit, jsonFlag } from "../output";
+import { emit } from "../output";
+import { jsonFlag } from "./shared";
 import { TextOutputSchema } from "../outputs";
 
 const PROMPTS: Readonly<Record<string, string>> = { "review-agent": reviewAgent };

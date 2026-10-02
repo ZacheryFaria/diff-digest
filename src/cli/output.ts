@@ -56,6 +56,3 @@ export async function emit<T>(out: Output, options: EmitOptions<T>, run: () => T
         out.setExitCode(EXIT_CODES[failure.code]);
     }
 }
-
-/** The `--json` flag that every command that prints data has. */
-export const jsonFlag = { kind: "boolean", brief: "Print the result as JSON", default: false } as const;

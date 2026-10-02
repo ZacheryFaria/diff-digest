@@ -1,15 +1,97 @@
-// Commands for the review: comments, the UI server, and waiting for clicks.
-import { commentsCommand, markCommand, noteCommand, resolveCommand } from "../commands/comments";
-import { serveCommand } from "../commands/serve";
-import { serverRoutes } from "../commands/server";
-import { waitCommand } from "../commands/wait";
+// Commands for the review: comments, the UI server, and waiting for clicks. Each loads its code when it runs.
+import { buildCommand } from "@stricli/core";
+import { MAX_WAIT_MS } from "../../lib/limits";
+import { COMMENT_STATUSES, idFlag, jsonFlag, parseSeconds, refFlag, refPositional } from "../commands/shared";
+import { serverRoutes } from "./server";
+
+const targetedFlags = { json: jsonFlag, id: idFlag, ref: refFlag } as const;
+
+/** Two required string arguments: [brief, placeholder] each. */
+function pair(first: readonly [string, string], second: readonly [string, string]) {
+    return {
+        kind: "tuple",
+        parameters: [
+            { brief: first[0], parse: String, placeholder: first[1] },
+            { brief: second[0], parse: String, placeholder: second[1] },
+        ],
+    } as const;
+}
 
 export const reviewRoutes = {
-    comments: commentsCommand,
-    resolve: resolveCommand,
-    note: noteCommand,
-    mark: markCommand,
-    serve: serveCommand,
-    wait: waitCommand,
+    comments: buildCommand({
+        docs: { brief: "Print the comments (default: open), or the open user comments as one Markdown comment" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                id: idFlag,
+                status: {
+                    kind: "parsed",
+                    parse: String,
+                    brief: `A comma list of ${COMMENT_STATUSES.join(", ")}`,
+                    default: "open",
+                },
+                markdown: {
+                    kind: "boolean",
+                    brief: "Print the open user comments as one Markdown comment",
+                    default: false,
+                },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/comments")).comments,
+    }),
+    resolve: buildCommand({
+        docs: { brief: "Mark a comment resolved, with a one-line reply" },
+        parameters: {
+            flags: targetedFlags,
+            positional: pair(["The comment id", "comment-id"], ["The reply", "reply"]),
+        },
+        loader: async () => (await import("../commands/comments")).resolve,
+    }),
+    note: buildCommand({
+        docs: { brief: "Add an agent note to the digest block that contains the text" },
+        parameters: { flags: targetedFlags, positional: pair(["Text from the block", "text"], ["The note", "body"]) },
+        loader: async () => (await import("../commands/comments")).note,
+    }),
+    mark: buildCommand({
+        docs: { brief: "List a file as generated in future digests for this repo (--off: review it again)" },
+        parameters: {
+            flags: { ...targetedFlags, off: { kind: "boolean", brief: "Unmark the file", default: false } },
+            positional: {
+                kind: "tuple",
+                parameters: [{ brief: "The repo-relative path", parse: String, placeholder: "path" }],
+            },
+        },
+        loader: async () => (await import("../commands/comments")).mark,
+    }),
+    serve: buildCommand({
+        docs: { brief: "Start the review server if it is not running, register the digest, and print its URL" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                id: idFlag,
+                open: { kind: "boolean", brief: "Open the URL in the browser", default: false },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/serve")).serve,
+    }),
+    wait: buildCommand({
+        docs: { brief: "Wait until the user clicks a button in the UI, then print the action and its comments" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                id: idFlag,
+                timeout: {
+                    kind: "parsed",
+                    parse: parseSeconds,
+                    brief: "The longest wait in seconds",
+                    default: String(MAX_WAIT_MS / 1000),
+                },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/wait")).wait,
+    }),
     server: serverRoutes,
 };

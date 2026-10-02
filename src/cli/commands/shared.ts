@@ -1,4 +1,13 @@
-// Parameters that many commands share.
+// Parameters that many commands share. The route files import this file at start, so it imports nothing heavy.
+
+/** The `--json` flag that every command that prints data has. */
+export const jsonFlag = { kind: "boolean", brief: "Print the result as JSON", default: false } as const;
+
+/** The comment statuses that `comments --status` takes. */
+export const COMMENT_STATUSES = ["open", "resolved", "note", "shared"] as const;
+
+/** The lines that `server logs` prints. */
+export const LOG_LINES = 200;
 
 export const refPositional = {
     kind: "tuple",

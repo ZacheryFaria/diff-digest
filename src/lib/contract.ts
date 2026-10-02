@@ -1,6 +1,7 @@
 // The HTTP contract (spec §7). The server implements it; the CLI and the UI call it. Pure.
 import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
+import { MAX_WAIT_MS } from "./limits";
 import { CommentSchema, CommentsFileSchema, CommentTargetSchema, LintIssueSchema } from "./schemas";
 import {
     ActionStatusSchema,
@@ -18,8 +19,7 @@ const IdSchema = z.strictObject({ id: z.string().min(1) }).readonly();
 const OkSchema = z.strictObject({ ok: z.literal(true) }).readonly();
 const PathSchema = z.strictObject({ id: z.string().min(1), path: z.string().min(1) }).readonly();
 const CommentRefSchema = z.strictObject({ id: z.string().min(1), commentId: z.string().min(1) }).readonly();
-/** The longest `actions.wait`: just under the 2-hour limit of a Claude Code background task. */
-export const MAX_WAIT_MS = 6_900_000;
+export { MAX_WAIT_MS } from "./limits";
 
 export const contract = {
     digest: {
