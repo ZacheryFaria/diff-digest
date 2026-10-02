@@ -2,7 +2,7 @@
 // PR targets (`#123`, a PR URL) need a backend and come in plan 5.
 import { z } from "zod";
 import { DigestError } from "../lib/errors";
-import { currentBranch, EMPTY_TREE, resolveBase, rev, runGit, short, slug, tryRev } from "../lib/repo";
+import { currentBranch, EMPTY_TREE, mergeBase, resolveBase, rev, runGit, short, slug, tryRev } from "../lib/repo";
 import { ShaSchema } from "../lib/schemas";
 
 export const TargetSchema = z
@@ -20,10 +20,11 @@ export const TargetSchema = z
     .readonly();
 export type Target = z.infer<typeof TargetSchema>;
 
-const PR_REF = /^(?:#?\d+|https?:\/\/[^/]+\/[^/]+\/[^/]+\/pull\/\d+)/u;
+const PR_REF = /^(?:#?\d+|https?:\/\/[^/]+\/[^/]+\/[^/]+\/pull\/\d+\/?)$/u;
 
-function isBranch(root: string, name: string): boolean {
-    return [`refs/heads/${name}`, `refs/remotes/origin/${name}`].some(
+/** The full ref of a local branch, or else of a branch on origin. `origin/` in front is optional. */
+function branchRef(root: string, branch: string): string | undefined {
+    return [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find(
         r => runGit(root, ["show-ref", "--verify", "--quiet", r]).ok,
     );
 }
@@ -42,7 +43,8 @@ function current(root: string): Target {
         };
     return {
         kind: "branch",
-        name: slug(branch === "" ? short(head) : branch),
+        // A detached HEAD is named for its commit, so the name stays the same for that commit.
+        name: branch === "" ? `commit-${short(head)}` : slug(branch),
         branch,
         checkedOut: true,
         base: resolveBase(root),
@@ -57,39 +59,44 @@ export function resolveTarget(root: string, arg?: string): Target {
             hint: "Give the PR's branch name.",
         });
     }
-    if (arg.includes("..")) {
-        const [a = "", b = ""] = arg.split(/\.{2,3}/u);
-        const base = rev(root, a);
-        const head = rev(root, b === "" ? "HEAD" : b);
-        return {
-            kind: "range",
-            name: `range-${short(base)}-${short(head)}`,
-            branch: "",
-            checkedOut: false,
-            base,
-            head,
-        };
-    }
-    const sha = tryRev(root, arg);
-    if (sha === null) throw new DigestError("NOT_FOUND", `Not a branch, commit, or range: ${arg}`);
-    if (isBranch(root, arg)) {
-        const branch = arg.replace(/^origin\//u, "");
-        const checkedOut = branch === currentBranch(root);
+    if (arg.includes("..")) return range(root, arg);
+    const branch = arg.replace(/^origin\//u, "");
+    const ref = branchRef(root, branch);
+    if (ref !== undefined) {
+        const sha = rev(root, ref);
         return {
             kind: "branch",
             name: slug(branch),
             branch,
-            checkedOut,
+            checkedOut: ref.startsWith("refs/heads/") && branch === currentBranch(root),
             base: resolveBase(root, undefined, sha),
             head: sha,
         };
     }
+    const sha = tryRev(root, arg);
+    if (sha === null) throw new DigestError("NOT_FOUND", `Not a branch, commit, or range: ${arg}`);
     return {
         kind: "commit",
         name: `commit-${short(sha)}`,
         branch: "",
         checkedOut: false,
-        base: rev(root, `${sha}^`),
+        // A root commit has no parent: its base is the empty tree.
+        base: tryRev(root, `${sha}^`) ?? EMPTY_TREE,
         head: sha,
+    };
+}
+
+/** `a..b` has the base `a`; `a...b` has the merge-base of `a` and `b`. An empty `b` is HEAD. */
+function range(root: string, arg: string): Target {
+    const [a = "", b = ""] = arg.split(/\.{2,3}/u);
+    const head = rev(root, b === "" ? "HEAD" : b);
+    const base = arg.includes("...") ? mergeBase(root, rev(root, a), head) : rev(root, a);
+    return {
+        kind: "range",
+        name: `range-${short(base)}-${short(head)}`,
+        branch: "",
+        checkedOut: false,
+        base,
+        head,
     };
 }
