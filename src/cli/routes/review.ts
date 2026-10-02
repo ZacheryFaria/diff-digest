@@ -96,6 +96,24 @@ export const reviewRoutes = {
         },
         loader: async () => (await import("../commands/publish")).pull,
     }),
+    export: buildCommand({
+        docs: { brief: "Write one static HTML file of the digest; its anchors link to the repo web page" },
+        parameters: {
+            flags: {
+                json: jsonFlag,
+                id: idFlag,
+                out: {
+                    kind: "parsed",
+                    parse: String,
+                    brief: "The file (default: the working copy path with .html)",
+                    optional: true,
+                },
+                open: { kind: "boolean", brief: "Open the file in the browser", default: false },
+            },
+            positional: refPositional,
+        },
+        loader: async () => (await import("../commands/export")).exportDigest,
+    }),
     serve: buildCommand({
         docs: { brief: "Start the review server if it is not running, register the digest, and print its URL" },
         parameters: {

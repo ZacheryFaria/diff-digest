@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { buildBinary } from "../../scripts/build";
 import { ServeOutputSchema } from "../../src/cli/outputs";
@@ -69,4 +69,13 @@ describe("the binary", () => {
             expect(body.length).toBeLessThan(MAX_ENTRY_BYTES);
         }
     }, 60_000);
+
+    test("export uses the bundle inside the binary", () => {
+        const root = repo?.root ?? dir;
+        const out = join(dir, "export.html");
+        expect(run(["export", "--out", out], root).code).toBe(0);
+        const html = readFileSync(out, "utf8");
+        expect(html).toContain('<script id="digest-payload" type="application/json">');
+        expect(html).not.toContain("Download the React DevTools");
+    }, 30_000);
 });

@@ -140,3 +140,16 @@ export const ServerEventSchema = z.discriminatedUnion("type", [
     z.strictObject({ type: z.literal("status"), status: ActionStatusSchema }).readonly(),
 ]);
 export type ServerEvent = z.infer<typeof ServerEventSchema>;
+
+// ---- static export ----
+
+/** The payload inside a static export page. */
+export const StaticPayloadSchema = z
+    .strictObject({
+        digest: DigestPayloadSchema,
+        comments: CommentsFileSchema,
+        /** The repo web URL (`https://host/owner/repo`), or null. Anchors link to it at the head commit. */
+        repoUrl: z.string().nullable(),
+    })
+    .readonly();
+export type StaticPayload = z.infer<typeof StaticPayloadSchema>;

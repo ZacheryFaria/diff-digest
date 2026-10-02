@@ -59,6 +59,8 @@ export type HunksOutput = z.infer<typeof HunksOutputSchema>;
 export const LintOutputSchema = z.array(LintIssueSchema).readonly();
 export type LintOutput = z.infer<typeof LintOutputSchema>;
 
+export const ExportOutputSchema = z.strictObject({ path: z.string() }).readonly();
+
 export const ServeOutputSchema = z.strictObject({ url: z.string(), id: z.string(), pid: z.int() }).readonly();
 
 export const ServerStatusOutputSchema = z
@@ -94,6 +96,7 @@ export const OUTPUTS = {
     note: CommentSchema,
     mark: OkOutputSchema,
     serve: ServeOutputSchema,
+    export: ExportOutputSchema,
     publish: PublishReportSchema,
     pull: PullReportSchema,
     wait: WaitResultSchema,
