@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { exactPattern, generatedMatcher, readConfigFile, resolveConfig } from "./config";
 import { changedFiles, diffLineCount, isReviewable } from "./diff";
+import { bodyLineOffset } from "./digest";
 import { parseDigest } from "./frontmatter";
 import { configPath } from "./paths";
 import { repoKeys, tryRev, type RepoContext } from "./repo";
@@ -36,7 +37,7 @@ export function digestPayload(open: OpenDigest): DigestPayload {
     return {
         id: open.frontmatter.id,
         body: open.body,
-        lineOffset: open.md.slice(0, open.md.length - open.body.length).split("\n").length - 1,
+        lineOffset: bodyLineOffset(open.md, open.body),
         frontmatter: open.frontmatter,
         files,
         head: open.ctx.head === "worktree" ? tryRev(open.ctx.root, "HEAD") : open.ctx.head,

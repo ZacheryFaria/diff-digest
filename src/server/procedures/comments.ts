@@ -1,4 +1,4 @@
-import { toLf } from "../../lib/digest";
+import { bodyLineOffset } from "../../lib/digest";
 import { DigestError } from "../../lib/errors";
 import { buildModel, type ModelBlock } from "../../lib/model";
 import type { OpenDigest } from "../../lib/payload";
@@ -28,9 +28,7 @@ function byId(comments: readonly Comment[], commentId: string): Comment {
 
 /** The model blocks with file lines: the body starts after the frontmatter. */
 function fileBlocks(open: OpenDigest): readonly ModelBlock[] {
-    const md = toLf(open.md);
-    const lineOffset = md.slice(0, md.length - open.body.length).split("\n").length - 1;
-    return buildModel(open.body, lineOffset).blocks;
+    return buildModel(open.body, bodyLineOffset(open.md, open.body)).blocks;
 }
 
 /** The block whose text equals `text`, else the one block that contains it. */

@@ -12,6 +12,15 @@ export function toLf(text: string): string {
     return text.replaceAll(/\r\n?/gu, "\n");
 }
 
+/**
+ * The number of lines before the body (the frontmatter), so that body line + offset = file line.
+ * `body` has LF line ends (parseDigest gives LF text), so the file is read with LF line ends too.
+ */
+export function bodyLineOffset(md: string, body: string): number {
+    const lf = toLf(md);
+    return lf.slice(0, lf.length - body.length).split("\n").length - 1;
+}
+
 /** An anchor is a code span `path:line` or `path:start-end`. */
 export const ANCHOR = /`([\w@#./-]+\.\w+):(\d+)(?:-(\d+))?`/gu;
 

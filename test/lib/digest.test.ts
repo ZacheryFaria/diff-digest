@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { anchors, blockId, findFile, toLf } from "../../src/lib/digest";
+import { anchors, blockId, bodyLineOffset, findFile, matchesPath, toLf } from "../../src/lib/digest";
 import type { ChangedFile } from "../../src/lib/schemas";
 
 describe("digest helpers", () => {
@@ -26,5 +26,21 @@ describe("digest helpers", () => {
         expect(findFile(files, "lib/x.ts")?.path).toBe("src/lib/x.ts");
         expect(findFile(files, "old/x.ts")?.path).toBe("src/lib/x.ts");
         expect(findFile(files, "b/x.ts")).toBeUndefined();
+    });
+});
+
+describe("bodyLineOffset", () => {
+    test("counts the lines before the body, with CRLF as one line end", () => {
+        const body = "# T\n\ntext\n";
+        expect(bodyLineOffset(`---\nid: x\n---\n${body}`, body)).toBe(3);
+        expect(bodyLineOffset(`---\r\nid: x\r\n---\r\n${body.replaceAll("\n", "\r\n")}`, body)).toBe(3);
+    });
+});
+
+describe("matchesPath", () => {
+    test("matches the full path or a suffix at a folder edge", () => {
+        expect(matchesPath("src/foo/bar.ts", "src/foo/bar.ts")).toBe(true);
+        expect(matchesPath("src/foo/bar.ts", "foo/bar.ts")).toBe(true);
+        expect(matchesPath("src/foo/bar.ts", "o/bar.ts")).toBe(false);
     });
 });

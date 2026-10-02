@@ -1,7 +1,7 @@
 // Lint rules for a digest (spec §9). Errors are facts that are wrong; warnings are best practices.
 // No rule rejects valid Markdown.
 import { DigestError } from "../errors";
-import { toLf } from "../digest";
+import { bodyLineOffset, toLf } from "../digest";
 import { FRONTMATTER, parseDigest } from "../frontmatter";
 import { buildModel } from "../model";
 import type { LintIssue } from "../schemas";
@@ -44,8 +44,7 @@ export function lintDigest(file: string, ctx: LintContext): LintIssue[] {
         if (!(error instanceof DigestError)) throw error;
         frontmatterError = error.message;
     }
-    const lineOffset = md.slice(0, md.length - body.length).split("\n").length - 1;
-    const input: LintInput = { model: buildModel(body, lineOffset), frontmatterError, ctx };
+    const input: LintInput = { model: buildModel(body, bodyLineOffset(md, body)), frontmatterError, ctx };
     return RULES.flatMap(rule => rule.check(input)).toSorted((a, b) => a.line - b.line);
 }
 
