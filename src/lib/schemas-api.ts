@@ -46,6 +46,8 @@ export const DigestPayloadSchema = z
     .strictObject({
         id: z.string(),
         body: z.string(),
+        /** The number of file lines before the body (the frontmatter), so body lines map to file lines. */
+        lineOffset: z.int().nonnegative(),
         frontmatter: FrontmatterSchema,
         files: z.array(MarkedFileSchema).readonly(),
         /** The head commit, or null for a working tree with no commits. */

@@ -120,6 +120,71 @@
             "rules": {
                 "max-lines-per-function": "off"
             }
+        },
+        {
+            "files": ["src/app/**"],
+            "rules": {
+                "react/react-in-jsx-scope": "off",
+                "react-hooks/rules-of-hooks": "error",
+                "react-hooks/exhaustive-deps": "error",
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "patterns": [
+                            {
+                                "group": ["**/cli/**", "**/server/**"],
+                                "message": "The UI must not import the CLI or the server."
+                            },
+                            {
+                                "group": ["node:*", "bun", "bun:*"],
+                                "message": "The UI runs in the browser: no Node or Bun APIs."
+                            },
+                            {
+                                "group": [
+                                    "**/lib/config",
+                                    "**/lib/store",
+                                    "**/lib/repo",
+                                    "**/lib/diff",
+                                    "**/lib/files",
+                                    "**/lib/payload",
+                                    "**/lib/check",
+                                    "**/lib/lock",
+                                    "**/lib/registry",
+                                    "**/lib/paths",
+                                    "**/lib/coverage",
+                                    "**/lib/frontmatter",
+                                    "**/lib/lint",
+                                    "**/lib/lint/*",
+                                    "**/lib/fmt",
+                                    "**/lib/publish/digest",
+                                    "**/lib/publish/review",
+                                    "**/lib/publish/pull",
+                                    "**/lib/publish/context",
+                                    "**/lib/backends/deps",
+                                    "**/lib/backends/github",
+                                    "**/lib/backends/gh",
+                                    "**/lib/backends/pr",
+                                    "**/lib/backends/local",
+                                    "**/lib/backends/registry",
+                                    "**/lib/backends/envelope"
+                                ],
+                                "message": "The UI imports only the pure lib files (spec \u00a73)."
+                            }
+                        ]
+                    }
+                ],
+                "no-restricted-globals": [
+                    "error",
+                    {
+                        "name": "Bun",
+                        "message": "The UI runs in the browser."
+                    },
+                    {
+                        "name": "process",
+                        "message": "The UI runs in the browser."
+                    }
+                ]
+            }
         }
     ]
 }

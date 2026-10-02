@@ -16,8 +16,12 @@ export interface ListItem {
     readonly raw: string;
     /** The item text, without the bullet or the number. It includes the text of nested blocks. */
     readonly text: string;
+    /** The item's own text only (not its nested blocks), as Markdown. */
+    readonly ownText: string;
     /** The inline content of the item's own text only (not of its nested blocks). */
     readonly inline: readonly Inline[];
+    /** For a task item (`- [ ]` / `- [x]`): whether it is checked. Null for other items. */
+    readonly checked: boolean | null;
     /** The nested blocks of the item (lists, code, more paragraphs), with their file lines. */
     readonly children: readonly Block[];
 }
@@ -61,7 +65,13 @@ const HeadingTokenSchema = z.looseObject({ type: z.literal("heading"), depth: z.
 const TextBlockTokenSchema = z.looseObject({ type: z.enum(["paragraph", "text"]), text: z.string() });
 const BlockquoteTokenSchema = z.looseObject({ type: z.literal("blockquote"), text: z.string() });
 const ListItemTokenSchema = z
-    .looseObject({ type: z.literal("list_item"), raw: z.string(), text: z.string() })
+    .looseObject({
+        type: z.literal("list_item"),
+        raw: z.string(),
+        text: z.string(),
+        task: z.boolean().optional(),
+        checked: z.boolean().optional(),
+    })
     .readonly();
 const ListTokenSchema = z
     .looseObject({ type: z.literal("list"), ordered: z.boolean(), items: z.array(ListItemTokenSchema).readonly() })
@@ -153,15 +163,19 @@ function nestedBlocks(source: string, from: number, tokens: readonly unknown[]):
 }
 
 function listItem(source: string, start: number, item: z.infer<typeof ListItemTokenSchema>): ListItem {
-    const tokens = children(item);
+    // A task item starts with a `checkbox` token; `checked` keeps its state.
+    const tokens = children(item).filter(t => RawSchema.safeParse(t).data?.type !== "checkbox");
     const head = RawSchema.safeParse(tokens[0]);
-    const own = head.success && (head.data.type === "text" || head.data.type === "paragraph");
+    const first = TextBlockTokenSchema.safeParse(tokens[0]);
+    const own = head.success && first.success;
     const blocks = nestedBlocks(source, start, tokens);
     return {
         line: lineAt(source, start),
         raw: item.raw,
         text: item.text,
+        ownText: first.success ? first.data.text : "",
         inline: own ? inlineOf(tokens.slice(0, 1)) : [],
+        checked: item.task === true ? (item.checked ?? false) : null,
         children: own ? blocks.slice(1) : blocks,
     };
 }

@@ -36,6 +36,7 @@ export function digestPayload(open: OpenDigest): DigestPayload {
     return {
         id: open.frontmatter.id,
         body: open.body,
+        lineOffset: open.md.slice(0, open.md.length - open.body.length).split("\n").length - 1,
         frontmatter: open.frontmatter,
         files,
         head: open.ctx.head === "worktree" ? tryRev(open.ctx.root, "HEAD") : open.ctx.head,

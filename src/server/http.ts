@@ -1,6 +1,7 @@
 // The HTTP server: the RPC handler, the safety checks, change polling, and the idle timer (spec §4).
 import { statSync } from "node:fs";
 import { RPCHandler } from "@orpc/server/fetch";
+import page from "../app/index.html";
 import { listDigests, registryPath } from "../lib/registry";
 import type { RegistryEntry } from "../lib/schemas-api";
 import { commentsPath } from "../lib/store";
@@ -24,9 +25,6 @@ export interface RunningServer {
     readonly port: number;
     readonly stop: () => Promise<void>;
 }
-
-const PAGE = `<!doctype html><meta charset="utf-8"><title>diff-digest</title>
-<p>The diff-digest server is running. The review UI is not built yet.</p>`;
 
 /** Only this server's own origin may call it (no DNS rebinding, no cross-site calls). */
 export function isAllowed(host: string | null, origin: string | null, port: number): boolean {
@@ -106,6 +104,9 @@ export function startServer(options: ServerOptions): RunningServer {
         port: options.port,
         // Long-poll waits and event streams stay open, so the server must not close idle connections.
         idleTimeout: 0,
+        // The page and its `/_bun/` assets carry no data, so they are not behind the Host check.
+        routes: { "/d/:id/": page },
+        development: false,
         async fetch(request) {
             lastRequest = Date.now();
             if (!isAllowed(request.headers.get("host"), request.headers.get("origin"), server.port ?? 0)) {
@@ -117,8 +118,6 @@ export function startServer(options: ServerOptions): RunningServer {
                 if (matched) return response;
             }
             if (url.pathname === "/health") return Response.json({ version: VERSION, pid: process.pid });
-            if (/^\/d\/[0-9a-z]{8}\/$/u.test(url.pathname))
-                return new Response(PAGE, { headers: { "content-type": "text/html" } });
             return new Response("not found", { status: 404 });
         },
     });
