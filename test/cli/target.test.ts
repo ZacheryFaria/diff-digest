@@ -41,7 +41,7 @@ describe("resolveTarget", () => {
         expect(resolveTarget(r.root, "main")).toMatchObject({ kind: "branch", checkedOut: false });
         expect(resolveTarget(r.root, "HEAD")).toMatchObject({ kind: "commit", base: main });
         expect(resolveTarget(r.root, "main..zf/topic")).toMatchObject({ kind: "range", base: main });
-        expectDigestError(() => resolveTarget(r.root, "#12"), "BAD_INPUT");
+        expectDigestError(() => resolveTarget(r.root, "#12"), "NOT_FOUND");
         expectDigestError(() => resolveTarget(r.root, "nope"), "NOT_FOUND");
     });
 

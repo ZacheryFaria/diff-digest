@@ -82,7 +82,9 @@
                 "src/lib/contract.ts",
                 "src/lib/schemas-api.ts",
                 "src/lib/client.ts",
-                "src/lib/review.ts"
+                "src/lib/review.ts",
+                "src/lib/publish/schemas.ts",
+                "src/lib/backends/types.ts"
             ],
             "rules": {
                 "no-restricted-imports": [
