@@ -41,3 +41,5 @@
 | any | The PR chip and the stale-head chip need payload fields (plan 6 carry-forward). |
 | any | `VERSION` is still 0.2.0. Bump it with the first release of the binary. |
 | any | The user's installed tool is the old one until they run `bun run setup` in the clone. |
+| any | If `install.json` is lost, or a run used another `DIFF_DIGEST_HOME`, `setup` refuses its own binary and asks for `--force`. |
+| any | A GitLab subgroup origin gives the repo `sub/r`, which `workingCopyPath` rejects (the same as the old tool). |
