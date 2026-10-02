@@ -99,8 +99,9 @@ export function resolveBase(root: string, ref?: string, head = "HEAD"): Sha {
     throw new DigestError("NOT_FOUND", "No base found.", { hint: "Give a base ref." });
 }
 
-/** The scp form: `[user@]host:owner/repo[.git]`. */
-const SCP_ORIGIN = /^(?:[^@/]+@)?([^:/]+):(?!\/)(.+)$/u;
+/** The scp form `git@host:owner/repo[.git]`. Other users and SSH host aliases stay unparsed, as before. */
+const SCP_ORIGIN = /^git@([^:/]+):(?!\/)(.+)$/u;
+const URL_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:", "ssh:"]);
 
 function ownerAndRepo(host: string, path: string): OriginRepo | null {
     const [owner, ...rest] = path
@@ -120,7 +121,9 @@ export function parseOrigin(url: string): OriginRepo | null {
     if (url.includes("://")) {
         if (!URL.canParse(url)) return null;
         const parsed = new URL(url);
-        return parsed.hostname === "" ? null : ownerAndRepo(parsed.hostname, decodeURIComponent(parsed.pathname));
+        return parsed.hostname === "" || !URL_SCHEMES.has(parsed.protocol)
+            ? null
+            : ownerAndRepo(parsed.hostname, decodeURIComponent(parsed.pathname));
     }
     const scp = SCP_ORIGIN.exec(url);
     if (scp === null) return null;

@@ -47,6 +47,8 @@ describe("export", () => {
         expect(inlineScriptSafe('a = "<!-- <SCRIPT>"')).toBe(false);
         expect(inlineScriptSafe('a = "<!-- x"; b = "<script "; c = "-->"')).toBe(false);
         expect(inlineScriptSafe('a = "<scripts>"; b = "<!--"')).toBe(true);
+        expect(inlineScriptSafe('a = "<!-->"; b = "<script>"; c = "-->"')).toBe(true);
+        expect(inlineScriptSafe('a = "<!--->"; b = "<script>"')).toBe(true);
         expect(inlineScriptSafe(EXPORT_BUNDLE.js.replaceAll(/<\/(script)/giu, "<\\/$1"))).toBe(true);
         expect(
             exportHtml({ digest: DIGEST, comments: [], repoUrl: null }, { js: "a = '</SCRIPT>'", css: "" }),

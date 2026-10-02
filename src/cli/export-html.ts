@@ -23,7 +23,8 @@ export function inlineScriptSafe(js: string): boolean {
     const lower = js.toLowerCase();
     let at = lower.indexOf("<!--");
     while (at !== -1) {
-        const end = lower.indexOf("-->", at + 4);
+        // `<!-->` and `<!--->` end the comment at once, as the HTML parser does.
+        const end = /^-?>/u.test(lower.slice(at + 4)) ? at + 1 : lower.indexOf("-->", at + 4);
         const open = /<script[\s/>]/u.exec(lower.slice(at + 4, end === -1 ? undefined : end));
         if (open !== null) return false;
         at = end === -1 ? -1 : lower.indexOf("<!--", end + 3);

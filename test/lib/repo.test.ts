@@ -59,6 +59,10 @@ describe("repo", () => {
             repo: "sub/repo",
         });
         expect(parseOrigin("/srv/git/widget.git")).toBeNull();
+        // Not parsed before either, so the repo key (the folder name) stays the same.
+        expect(parseOrigin("github-work:acme/widget.git")).toBeNull();
+        expect(parseOrigin("org-1@github.com:acme/widget.git")).toBeNull();
+        expect(parseOrigin("git://github.com/acme/widget")).toBeNull();
         expect(parseOrigin("https://github.com/acme")).toBeNull();
     });
 

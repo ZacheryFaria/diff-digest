@@ -64,7 +64,9 @@ function recorded(home: string): InstallRecord {
 function ours(path: string, home: string): boolean {
     if (existsSync(join(path, MARKER))) return true;
     const record = recorded(home);
-    if (record.paths.includes(path) && statSync(path).isFile() && record.binarySha256 === sha256(path)) return true;
+    // A record from before the hash was kept has no hash; its path is enough.
+    const hashMatches = record.binarySha256 === undefined || record.binarySha256 === sha256(path);
+    if (record.paths.includes(path) && statSync(path).isFile() && hashMatches) return true;
     try {
         return statSync(path).size < 4096 && readFileSync(path, "utf8").includes(MARKER);
     } catch {
