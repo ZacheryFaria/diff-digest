@@ -1,4 +1,4 @@
-// The open user comments as one portable Markdown comment (ported from bin/diff-digest.mjs). Pure.
+// The open user comments as one portable Markdown comment (ported from the old tool). Pure.
 // A backend (plan 5) adds its envelope and turns the labels into links.
 import { linkDestination } from "./render";
 import type { Comment } from "./schemas";

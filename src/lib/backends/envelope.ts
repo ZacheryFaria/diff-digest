@@ -10,7 +10,7 @@ const MARKER = /^<!-- diff-digest: (\{.*?\}) -->\n?/u;
 const FOOTER = /\n*diff-digest · open locally: `[^`\n]*`\s*$/u;
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/u;
 
-/** The marker of the old tool (bin/diff-digest.mjs): version 1, but no digest id. */
+/** The marker of the old JS tool: version 1, but no digest id. */
 const OldMetaSchema = z.looseObject({ v: z.literal(1), base: z.string() });
 
 function parseMeta(raw: unknown, where: string): DigestMeta {

@@ -1,4 +1,4 @@
-// A unified diff as rows for the Diff view (ported from ui/app.js `diffTable`).
+// A unified diff as rows for the Diff view (ported from the old tool).
 
 export type DiffRow =
     | { readonly kind: "hunk"; readonly text: string; readonly newStart: number; readonly newEnd: number }

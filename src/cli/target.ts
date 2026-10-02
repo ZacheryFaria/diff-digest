@@ -1,4 +1,4 @@
-// What a digest describes: a PR, a branch, a commit, or a range (ported from bin/diff-digest.mjs).
+// What a digest describes: a PR, a branch, a commit, or a range (ported from the old tool).
 import { z } from "zod";
 import { realDeps } from "../lib/backends/deps";
 import { ensurePrCommits, parsePrRef, prInfo, type PrRef } from "../lib/backends/pr";

@@ -1,4 +1,4 @@
-// The rows of the code pane, for the Diff view and for the After and Before views (ported from ui/app.js).
+// The rows of the code pane, for the Diff view and for the After and Before views (ported from the old tool).
 import type { DiffPayload, FilePayload, FileSide, HunkSummary } from "../../lib/schemas-api";
 import { diffRows } from "./diff";
 

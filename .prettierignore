@@ -1,7 +1,4 @@
 node_modules/
 dist/
-bin/
-ui/
-scripts/install.mjs
 *.md
 bun.lock

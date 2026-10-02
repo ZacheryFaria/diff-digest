@@ -1,4 +1,4 @@
-// The changed files as a folder tree (ported from ui/app.js `renderTree`).
+// The changed files as a folder tree (ported from the old tool).
 import type { MarkedFile } from "../lib/schemas-api";
 
 export type TreeFile = MarkedFile & { readonly name: string };

@@ -1,6 +1,5 @@
 {
     "$schema": "./node_modules/oxlint/configuration_schema.json",
-    "ignorePatterns": ["scripts/install.mjs"],
     "plugins": ["typescript", "unicorn", "import", "promise", "react"],
     "categories": {
         "correctness": "error",
