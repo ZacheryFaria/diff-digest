@@ -125,7 +125,8 @@ button:disabled {
     min-height: 0;
 }
 #digest {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 160px;
     overflow: auto;
     padding: var(--space-24) var(--space-32) 120px;
 }
@@ -134,8 +135,9 @@ button:disabled {
     margin: 0 auto;
 }
 #code {
-    width: 48%;
-    min-width: 420px;
+    /* The three panes always fit the window: the code pane and the digest shrink. */
+    flex: 0 1 48%;
+    min-width: 240px;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
@@ -146,6 +148,7 @@ button:disabled {
 }
 .code-head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: var(--space-8);
@@ -562,6 +565,11 @@ a.chip:hover {
     background: rgba(0, 0, 0, 0.6);
 }
 .dialog {
+    /* The dialog fits the window: the preview shrinks, and the buttons stay in view. */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 32px);
+    box-sizing: border-box;
     width: min(860px, 92vw);
     padding: var(--space-16);
     color: var(--fg);
@@ -587,8 +595,10 @@ a.chip:hover {
     margin: var(--space-12) 0;
 }
 .dialog textarea {
+    flex: 1 1 420px;
     width: 100%;
-    min-height: 420px;
+    box-sizing: border-box;
+    min-height: 80px;
     resize: vertical;
     padding: var(--space-12);
     font: 12.5px/1.5 var(--font-mono);
@@ -598,6 +608,7 @@ a.chip:hover {
     border-radius: var(--radius);
 }
 .dialog .row {
+    flex-shrink: 0;
     display: flex;
     gap: var(--space-8);
     justify-content: flex-end;
@@ -609,7 +620,7 @@ a.chip:hover {
 
 /* file tree */
 #files {
-    width: 260px;
+    width: clamp(160px, 20vw, 260px);
     flex-shrink: 0;
     overflow: auto;
     padding-bottom: var(--space-24);
